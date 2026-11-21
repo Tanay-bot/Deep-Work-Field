@@ -710,6 +710,9 @@ async function resume(): Promise<void> {
   }
   attachEditTracking(win, checkpoint);
   stopScenario();
+  dom.stepDrift.disabled = false;
+  dom.demoStep.textContent =
+    'Verified restore complete. Edit the answer to record the first qualifying edit; the checkpoint is still saved if you want to replay the drift.';
   applyState('FOCUSED');
   toast('Verified: back at problem 4b.', 'ok');
 }

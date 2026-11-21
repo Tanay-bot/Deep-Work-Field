@@ -8,8 +8,8 @@ that is **verified against the surrounding passage and the viewport**. If the ch
 says “Saved context only” and shows the saved frame/text — it never claims a restore it did not verify.
 Corrections are stored locally and can change later calls. No accounts, no backend, no cloud AI.
 
-- Hosted demo: **https://deep-work-field-ikbno6-preview.freebuff.site**
-- Production URL: **https://deep-work-field-ikbno6.freebuff.site** (after publishing)
+- Production demo: **https://deep-work-field-ikbno6.freebuff.site**
+- Preview build: **https://deep-work-field-ikbno6-preview.freebuff.site**
 - Event: TripleH (Teens Hack Houston) · Productivity · Devpost closes Nov 21, 2026, 5:00 PM CST
 
 ## Quick start
@@ -164,11 +164,11 @@ production URL. Add any custom domain there before using the bridge.
 
 | # | Check | Result |
 | --- | --- | --- |
-| 1 | Fresh browser storage → deployed Preview → Try it now → drift → nudge → Resume loop, no install | **PASS** on the public preview: capture, 3 s hold, spoken/banner nudge, verified landing, first qualifying edit. Verified with Playwright on a new origin (not a brand-new desktop Chrome profile). |
+| 1 | Fresh browser storage → deployed link → Try it now → drift → nudge → Resume loop, no install | **PASS** on both the public preview and the published production URL: capture, 3 s hold, spoken/banner nudge, verified landing, first qualifying edit. Verified with Playwright on a new origin (not a brand-new desktop Chrome profile). |
 | 2 | Extension loads unpacked from the zip using README steps alone | **NOT VERIFIED**: built, zipped, manifest parsed, all referenced files present; no extension-capable Chrome in this cloud workspace. |
 | 3 | Two identical “4b” headings + resize → restore lands on the right one and verification passes | **PASS**: both headings present; restore at 480×720 during navigation landed on Part II, answer key offscreen, status “Verified restore… Landed on the Part II problem 4b, not the answer key.” |
 | 4 | Unsupported URL → install extension / saved context only screen | **PASS**: third-party URL opens, dialog shows “The hosted demo cannot verify here” and “Saved context only”. |
-| 5 | Wi-Fi off → opening-shot sequence end to end | **PASS**: service worker controlled the page; offline shell, worksheet, capture, nudge and verified resume all completed. |
+| 5 | Wi-Fi off → opening-shot sequence end to end | **PASS** on the preview (same build): service worker controlled the page; offline shell, worksheet, capture, nudge and verified resume all completed. |
 | 6 | 3–2 vote shows UNCERTAIN; a correction changes a later similar call | **PASS**: 3 on-task / 2 drift → trace state `UNCERTAIN` with votes 3–2 and no nudge; 5/5 on-task → later similar call shown as `FOCUSED` with “Correction memory override: 5/5”. |
 
 Also exercised: uploaded-HTML capture + blob-URL verified restore, study recording with a synthetic
