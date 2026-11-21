@@ -10,7 +10,7 @@ import { focusByHour } from '../../shared/src/planner';
 import { correctionVote } from '../../shared/src/knn';
 import { FocusEngine, type EngineDecision } from '../../shared/src/engine';
 import './lib/fx';
-import { Galaxy } from './lib/galaxy';
+import type { Galaxy } from './lib/galaxy';
 import { Voice } from './lib/voice';
 import { FaceSensor } from './lib/face';
 import { loadSemantic, scaleSemantic, semanticSimilarity, semanticStatus } from './lib/semantic';
@@ -234,17 +234,33 @@ function openDialog(dialog: HTMLDialogElement): void {
   if (!dialog.open) dialog.showModal();
 }
 
+function webglAvailable(): boolean {
+  try {
+    return !!document.createElement('canvas').getContext('webgl2');
+  } catch {
+    return false;
+  }
+}
+
+/** three.js loads in its own chunk after first paint; no WebGL → a static field. */
 function mountGalaxy(): void {
-  Galaxy.create(dom.galaxyCanvas)
+  const fallback = () => {
+    document.documentElement.classList.add('no-webgl');
+    dom.galaxyBackend.textContent = 'static';
+    dom.galaxyCanvas.style.display = 'none';
+  };
+  if (!webglAvailable()) {
+    fallback();
+    return;
+  }
+  import('./lib/galaxy')
+    .then(({ Galaxy }) => Galaxy.create(dom.galaxyCanvas))
     .then((galaxy) => {
       state.galaxy = galaxy;
-      dom.galaxyBackend.textContent = galaxy.backend === 'webgpu' ? 'WebGPU' : 'WebGL2';
-      galaxy.setState('FOCUSED');
+      dom.galaxyBackend.textContent = 'WebGL2';
+      galaxy.setState(state.mode === 'resume-only' ? 'FOCUSED' : ((state.trace[state.trace.length - 1]?.state ?? 'FOCUSED') as FocusState));
     })
-    .catch(() => {
-      dom.galaxyBackend.textContent = 'unavailable';
-      dom.galaxyCanvas.style.display = 'none';
-    });
+    .catch(fallback);
 }
 
 function setupVoice(): void {

@@ -754,3 +754,17 @@ a.dl::before { content: '↓ '; }
 .vote-dots i.on { background: var(--mint); border-color: var(--mint); box-shadow: 0 0 8px var(--mint); }
 .vote-dots i.off { background: var(--ember); border-color: var(--ember); box-shadow: 0 0 8px var(--ember); }
 .vote-dots span { flex-basis: 100%; font-size: 13px; color: var(--bone-2); margin-top: 4px; }
+
+/* No WebGL: an art-directed static field in the same framing (and the same state colour). */
+html.no-webgl body::before {
+  content: ''; position: fixed; z-index: 0; pointer-events: none;
+  width: min(80vw, 900px); aspect-ratio: 1; right: -12vw; top: -18vw; border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, #fff6e4 0 1.2%, transparent 3%),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--state) 70%, transparent) 0 6%, transparent 18%),
+    repeating-conic-gradient(from 20deg at 50% 50%, color-mix(in srgb, var(--state) 22%, transparent) 0 6deg, transparent 6deg 40deg),
+    radial-gradient(circle at 50% 50%, rgba(92, 120, 255, 0.10), transparent 62%);
+  mask: radial-gradient(circle, #000 20%, transparent 68%);
+  transform: rotateX(62deg) rotateZ(-24deg);
+  opacity: 0.9;
+}
