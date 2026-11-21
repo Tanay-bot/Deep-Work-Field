@@ -1,0 +1,13 @@
+session_id,timestamp_iso,elapsed_ms,type,state,mode,detail
+sess_two,2026-11-21T18:00:00.000Z,0,session-start,,full,"mode=full"
+sess_two,2026-11-21T18:00:00.000Z,0,state,FOCUSED,full,FOCUSED
+sess_two,2026-11-21T18:00:10.000Z,10000,state,DRIFTING,full,DRIFTING
+sess_two,2026-11-21T18:00:13.000Z,13000,drift,DRIFTING,full,sim=0.10
+sess_two,2026-11-21T18:00:13.000Z,13000,nudge,DRIFTING,full,"You were on 4b"
+sess_two,2026-11-21T18:00:20.000Z,20000,state,FOCUSED,full,FOCUSED
+sess_two,2026-11-21T18:00:30.000Z,30000,mode,,screen-only,screen-only
+sess_two,2026-11-21T18:00:40.000Z,40000,state,DRIFTING,screen-only,DRIFTING
+sess_two,2026-11-21T18:00:43.000Z,43000,drift,DRIFTING,screen-only,sim=0.08
+sess_two,2026-11-21T18:00:43.000Z,43000,nudge,DRIFTING,screen-only,"You were on 4b"
+sess_two,2026-11-21T18:00:52.000Z,52000,first-edit,WRITING,screen-only,chars=12
+sess_two,2026-11-21T18:01:00.000Z,60000,session-end,,screen-only,recording stopped

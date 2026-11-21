@@ -230,6 +230,22 @@ await run('corrections: one vote per source moment, other embedder versions igno
   }
 }
 
+// 15. Evaluation: two labelled drifts in one recording are scored independently.
+{
+  const name = 'evaluation: two drifts in one session — no cross-episode false nudges, edit counted once, mode at event time';
+  try {
+    const { execFileSync } = await import('node:child_process');
+    const out = execFileSync('node', [resolve(root, 'tools/results.mjs'), '--sessions', resolve(root, 'tools/fixtures/two-drifts'), '--labels', resolve(root, 'tools/fixtures/two-drifts/labels.csv')], { encoding: 'utf8' });
+    const want = [/\| Bo\s+\| sess_two \| 1\s+\| full\s+\| yes\s+\| yes\s+\| never returned/, /\| Bo\s+\| sess_two \| 2\s+\| screen-only\s+\| yes\s+\| yes\s+\| 12\.0/, /False nudges \(matched to no labelled episode\): 0/];
+    const bad = want.find((re) => !re.test(out));
+    if (bad) throw new Error(`output did not match ${bad}`);
+    results.push(`  ✓ ${name}`);
+  } catch (error) {
+    failed++;
+    results.push(`  ✗ ${name}\n      ${String(error.message ?? error).split('\n')[0]}`);
+  }
+}
+
 await browser.close();
 console.log(results.join('\n'));
 console.log(failed ? `\n${failed} failed` : `\nall ${results.length} passed`);

@@ -1260,7 +1260,8 @@ async function stopStudy(fromTrackEnd = false): Promise<void> {
     state.lastStudyCsv = record.id;
     dom.studyExport.disabled = false;
     renderStudyList();
-    toast(fromTrackEnd ? 'Sharing stopped; recording saved and CSV exported.' : 'Recording saved. CSV exported.', 'ok');
+    if (record.incomplete) toast('Recording saved but marked INCOMPLETE (the recorder did not finalize). The CSV says so.', 'warn');
+    else toast(fromTrackEnd ? 'Sharing stopped; recording saved and CSV exported.' : 'Recording saved. CSV exported.', 'ok');
   }
 }
 

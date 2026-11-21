@@ -130,91 +130,122 @@ function stateSpans(events) {
   return spans;
 }
 
-function evaluate(label, session) {
-  const events = session.events.filter((event) => event.sessionId === label.sessionId);
-  if (!events.length) {
-    return { ...label, missing: true };
+/** Greedy one-to-one matching: each event goes to the closest unmatched label in its window. */
+function matchEvents(times, onsets, before = 1000, after = 15000) {
+  const owner = new Map(); // label index -> event time
+  const unmatched = [];
+  for (const t of times) {
+    let best = -1;
+    for (let i = 0; i < onsets.length; i++) {
+      if (owner.has(i)) continue;
+      if (t < onsets[i] - before || t > onsets[i] + after) continue;
+      if (best === -1 || Math.abs(t - onsets[i]) < Math.abs(t - onsets[best])) best = i;
+    }
+    if (best === -1) unmatched.push(t);
+    else owner.set(best, t);
   }
-  const mode = events.find((event) => event.mode)?.mode ?? '';
-  const duration = events.reduce((max, event) => Math.max(max, event.elapsed), 0);
-  const after = events.filter((event) => event.elapsed >= label.onset);
-  const edit = after.find((event) => event.type === 'first-edit');
-  const nudges = events.filter((event) => event.type === 'nudge');
-  const driftEvents = events.filter((event) => event.type === 'drift');
-  const correctionEvents = events.filter((event) => event.type === 'correction');
+  return { owner, unmatched };
+}
 
-  const nearLabel = (t) => Math.abs(t - label.onset) <= 10000;
-  const falseNudges = nudges.filter((event) => !nearLabel(event.elapsed)).length;
-  const hours = Math.max(duration / 3_600_000, 1 / 120);
-  const driftDetected = driftEvents.some(
-    (event) => event.elapsed >= label.onset - 1000 && event.elapsed <= label.onset + 15000,
-  );
+function modeAt(events, t) {
+  let mode = '';
+  for (const e of events) {
+    if (e.elapsed > t) break;
+    if (e.mode) mode = e.mode;
+  }
+  return mode;
+}
+
+/**
+ * Evaluates one session against ALL of its labels at once, so a nudge for
+ * one drift episode can never count as "false" in another episode's row,
+ * and one edit can only count as the return for the episode it falls in.
+ */
+function evaluateSession(sessionId, sessionLabels, events) {
+  events = [...events].sort((x, y) => x.elapsed - y.elapsed);
+  const labelsSorted = [...sessionLabels].sort((x, y) => x.onset - y.onset);
+  const onsets = labelsSorted.map((l) => l.onset);
+  const duration = events.reduce((max, e) => Math.max(max, e.elapsed), 0);
+  const nudges = matchEvents(events.filter((e) => e.type === 'nudge').map((e) => e.elapsed), onsets);
+  const drifts = matchEvents(events.filter((e) => e.type === 'drift').map((e) => e.elapsed), onsets);
+  const edits = events.filter((e) => e.type === 'first-edit').map((e) => e.elapsed);
+  const incomplete = events.some((e) => e.type === 'session-end' && /INCOMPLETE/.test(e.detail));
   const spans = stateSpans(events);
-  const uncertainMs = spans
-    .filter((span) => span.state === 'UNCERTAIN')
-    .reduce((sum, span) => sum + Math.max(0, span.end - span.start), 0);
-  const badNudgesPrevented = correctionEvents.filter((event) => /decision=on-task/.test(event.detail)).length;
-  const realDriftsSuppressed = correctionEvents.filter((event) => /decision=drift/.test(event.detail)).length;
-
+  const uncertainMs = spans.filter((sp) => sp.state === 'UNCERTAIN').reduce((sum, sp) => sum + Math.max(0, sp.end - sp.start), 0);
+  const hours = Math.max(duration / 3_600_000, 1 / 120);
+  const episodes = labelsSorted.map((label, i) => {
+    const windowEnd = i + 1 < onsets.length ? onsets[i + 1] : Infinity;
+    const edit = edits.find((t) => t >= label.onset && t < windowEnd);
+    return {
+      ...label,
+      episode: i + 1,
+      mode: modeAt(events, label.onset),
+      detected: drifts.owner.has(i),
+      nudged: nudges.owner.has(i),
+      firstEdit: edit === undefined ? null : edit - label.onset,
+    };
+  });
   return {
-    ...label,
-    mode,
+    sessionId,
+    student: labelsSorted[0]?.student ?? '',
     duration,
-    firstEdit: edit ? edit.elapsed - label.onset : null,
-    falseNudges,
-    falseNudgesPerHour: falseNudges / hours,
-    missed: !driftDetected,
+    episodes,
+    falseNudges: nudges.unmatched.length,
+    falseNudgesPerHour: nudges.unmatched.length / hours,
     uncertainPct: duration ? (uncertainMs / duration) * 100 : 0,
-    neverReturned: !edit,
-    corrections: correctionEvents.length,
-    badNudgesPrevented,
-    realDriftsSuppressed,
-    missing: false,
+    corrections: events.filter((e) => e.type === 'correction').length,
+    incomplete,
   };
 }
 
-const results = labels.map((label) => {
-  const session = sessions.find((candidate) => candidate.events.some((event) => event.sessionId === label.sessionId));
-  return session ? evaluate(label, session) : { ...label, missing: true };
-});
+const bySession = new Map();
+for (const label of labels) {
+  if (!bySession.has(label.sessionId)) bySession.set(label.sessionId, []);
+  bySession.get(label.sessionId).push(label);
+}
+const allEvents = sessions.flatMap((sess) => sess.events);
+const evaluated = [];
+const missing = [];
+for (const [sessionId, sessionLabels] of bySession) {
+  const events = allEvents.filter((e) => e.sessionId === sessionId);
+  if (!events.length) missing.push(sessionId);
+  else evaluated.push(evaluateSession(sessionId, sessionLabels, events));
+}
+const labelledIds = new Set(bySession.keys());
+const unlabeled = [...new Set(allEvents.map((e) => e.sessionId))].filter((id) => id && !labelledIds.has(id));
 
 const fmt = (value, digits = 1) => (value === null || value === undefined || Number.isNaN(value) ? '—' : Number(value).toFixed(digits));
-const rows = [
-  ['Student', 'Session', 'Mode', 'Duration', 'First edit after drift (s)', 'False nudges / h', 'Missed drift', 'UNCERTAIN %', 'Never returned', 'Corrections'],
-];
-for (const result of results) {
-  if (result.missing) {
-    rows.push([result.student, result.sessionId, '—', '—', '—', '—', '—', '—', '—', 'session CSV missing']);
-    continue;
-  }
-  rows.push([
-    result.student,
-    result.sessionId,
-    result.mode || '—',
-    `${Math.round(result.duration / 1000)}s`,
-    result.firstEdit === null ? '—' : fmt(result.firstEdit / 1000),
-    fmt(result.falseNudgesPerHour, 2),
-    result.missed ? 'yes' : 'no',
-    fmt(result.uncertainPct),
-    result.neverReturned ? 'yes' : 'no',
-    String(result.corrections),
-  ]);
+function table(rows) {
+  const widths = rows[0].map((_, c) => Math.max(...rows.map((r) => String(r[c]).length)));
+  const lines = rows.map((r) => `| ${r.map((cell, i) => String(cell).padEnd(widths[i])).join(' | ')} |`);
+  lines.splice(1, 0, `| ${widths.map((w) => '-'.repeat(w)).join(' | ')} |`);
+  return lines.join('\n');
 }
-const widths = rows[0].map((_, column) => Math.max(...rows.map((row) => String(row[column]).length)));
-const tableLines = rows.map((row) => `| ${row.map((cell, index) => String(cell).padEnd(widths[index])).join(' | ')} |`);
-tableLines.splice(1, 0, `| ${widths.map((width) => '-'.repeat(width)).join(' | ')} |`);
-const markdown = tableLines.join('\n');
 
+const episodeRows = [['Student', 'Session', 'Episode', 'Mode at onset', 'Drift detected', 'Nudged', 'First edit after onset (s)']];
+for (const sess of evaluated) {
+  for (const ep of sess.episodes) {
+    episodeRows.push([ep.student, sess.sessionId, ep.episode, ep.mode || '—', ep.detected ? 'yes' : 'MISSED', ep.nudged ? 'yes' : 'no', ep.firstEdit === null ? 'never returned' : fmt(ep.firstEdit / 1000)]);
+  }
+}
+const sessionRows = [['Student', 'Session', 'Duration', 'Labelled drifts', 'False nudges', 'False nudges / h', 'UNCERTAIN %', 'Corrections logged', 'Recording']];
+for (const sess of evaluated) {
+  sessionRows.push([sess.student, sess.sessionId, `${Math.round(sess.duration / 1000)}s`, sess.episodes.length, sess.falseNudges, fmt(sess.falseNudgesPerHour, 2), fmt(sess.uncertainPct), sess.corrections, sess.incomplete ? 'INCOMPLETE' : 'complete']);
+}
+
+const allEpisodes = evaluated.flatMap((sess) => sess.episodes);
 const summary = [
-  `Sessions: ${new Set(results.filter((r) => !r.missing).map((r) => r.sessionId)).size}`,
-  `Students: ${new Set(results.map((r) => r.student)).size}`,
-  `Missed drifts: ${results.filter((r) => !r.missing && r.missed).length}/${results.filter((r) => !r.missing).length}`,
-  `Never returned: ${results.filter((r) => !r.missing && r.neverReturned).length}`,
-  `Correction decisions logged: ${results.reduce((sum, r) => sum + (r.corrections ?? 0), 0)}`,
-  `Bad nudges prevented: ${results.reduce((sum, r) => sum + (r.badNudgesPrevented ?? 0), 0)}`,
-  `Real drifts restored: ${results.reduce((sum, r) => sum + (r.realDriftsSuppressed ?? 0), 0)}`,
-].join('\n');
+  `Students: ${new Set(evaluated.map((sess) => sess.student)).size} · Sessions: ${evaluated.length} · Labelled drift episodes: ${allEpisodes.length}`,
+  `Missed drifts: ${allEpisodes.filter((ep) => !ep.detected).length}/${allEpisodes.length}`,
+  `Never returned (no first edit inside the episode): ${allEpisodes.filter((ep) => ep.firstEdit === null).length}`,
+  `False nudges (matched to no labelled episode): ${evaluated.reduce((sum, sess) => sum + sess.falseNudges, 0)}`,
+  `Correction events logged: ${evaluated.reduce((sum, sess) => sum + sess.corrections, 0)} (effect on nudges needs a controlled replay; not claimed here)`,
+  missing.length ? `Labelled sessions with no CSV: ${missing.join(', ')}` : '',
+  unlabeled.length ? `Sessions with no labels (not scored): ${unlabeled.join(', ')}` : '',
+  `Note: the app logs one first edit per session, so only one episode per session can show a return.`,
+].filter(Boolean).join('\n');
 
+const markdown = `### Per drift episode\n\n${table(episodeRows)}\n\n### Per session\n\n${table(sessionRows)}`;
 console.log(markdown);
 console.log(`\n${summary}`);
 if (args.out) {

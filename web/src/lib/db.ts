@@ -7,9 +7,11 @@ export interface StudyRecord {
   mode: string;
   startedAt: number;
   endedAt: number;
-  events: { t: number; type: string; detail: string; state?: string }[];
+  events: { t: number; elapsed?: number; type: string; detail: string; state?: string; mode?: string }[];
   video?: Blob;
   mimeType?: string;
+  /** True when the recorder did not finalize cleanly (timeout or capture error). */
+  incomplete?: boolean;
 }
 
 const DB_NAME = 'deep-work-field';

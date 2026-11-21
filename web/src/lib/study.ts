@@ -2,67 +2,93 @@ import type { StudyEvent } from '../../../shared/src/types';
 import type { StudyRecord } from './db';
 import { newId } from '../../../shared/src/checkpoint';
 
+type StudyStatus = 'idle' | 'requesting' | 'recording' | 'stopping';
+type LoggedEvent = StudyEvent & { elapsed: number; mode: string };
+
+/** Recordings stop on their own after this long, so a forgotten tab cannot fill the disk. */
+const MAX_RECORDING_MS = 2 * 60 * 60 * 1000;
+
 /**
- * Study mode records the worksheet tab the student picks in Chrome's share
- * picker. Audio is disabled and the in-page galaxy is hidden (or lives in a
- * Picture-in-Picture window that is not part of the captured tab), so the
- * labeler cannot tell which mode is running.
+ * Study mode records the browser tab the student picks in Chrome's share
+ * picker (the code cannot confirm it is the worksheet; the UI says "the tab
+ * you pick"). Audio is off and the galaxy lives outside the captured tab, so
+ * a labeler cannot tell which mode ran.
+ *
+ * Lifecycle: idle → requesting → recording → stopping → idle. start() and
+ * stop() are safe to call twice; Chrome's own "Stop sharing" and the length
+ * cap go through the same stop path. Timing uses a monotonic clock.
  */
 export class StudyRecorder {
-  active = false;
+  status: StudyStatus = 'idle';
   sessionId = '';
   goal = '';
   mode = '';
   startedAt = 0;
-  events: StudyEvent[] = [];
+  events: LoggedEvent[] = [];
   onEnded: (() => void) | null = null;
+  private startPerf = 0;
   private stream: MediaStream | null = null;
   private recorder: MediaRecorder | null = null;
   private chunks: Blob[] = [];
   private mimeType = '';
+  private capTimer = 0;
+  private stopping: Promise<StudyRecord | null> | null = null;
+  private captureError = false;
+
+  get active(): boolean {
+    return this.status === 'recording';
+  }
+
+  private cleanup(): void {
+    clearTimeout(this.capTimer);
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream = null;
+    this.recorder = null;
+  }
 
   async start(sessionId: string, goal: string, mode: string): Promise<{ ok: boolean; error?: string }> {
-    if (this.active) return { ok: true };
+    if (this.status === 'recording') return { ok: true };
+    if (this.status !== 'idle') return { ok: false, error: 'A recording is already starting or stopping.' };
+    this.status = 'requesting';
     try {
       this.stream = await navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: 'browser' } as unknown as MediaTrackConstraints,
         audio: false,
       });
+      const track = this.stream.getVideoTracks()[0];
+      const settings = track?.getSettings?.() as { displaySurface?: string } | undefined;
+      if (settings?.displaySurface && settings.displaySurface !== 'browser') {
+        throw new Error('Pick a Chrome tab, not a window or the whole screen.');
+      }
+      const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+      this.mimeType = candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
+      this.recorder = this.mimeType ? new MediaRecorder(this.stream, { mimeType: this.mimeType }) : new MediaRecorder(this.stream);
+      this.chunks = [];
+      this.captureError = false;
+      this.recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) this.chunks.push(event.data);
+      };
+      this.recorder.onerror = () => {
+        this.captureError = true;
+        this.onEnded?.();
+      };
+      track?.addEventListener('ended', () => {
+        if (this.status === 'recording') this.onEnded?.();
+      });
+      this.recorder.start(1000);
     } catch (error) {
+      this.cleanup();
+      this.status = 'idle';
       return { ok: false, error: error instanceof Error ? error.message : 'Screen sharing was not granted.' };
-    }
-    const track = this.stream.getVideoTracks()[0];
-    const settings = track?.getSettings?.() as { displaySurface?: string } | undefined;
-    if (settings?.displaySurface && settings.displaySurface !== 'browser') {
-      this.stream.getTracks().forEach((t) => t.stop());
-      this.stream = null;
-      return { ok: false, error: 'Pick a Chrome tab (the worksheet), not a window or the whole screen.' };
     }
     this.sessionId = sessionId;
     this.goal = goal;
     this.mode = mode;
     this.startedAt = Date.now();
+    this.startPerf = performance.now();
     this.events = [];
-    this.chunks = [];
-    const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-    this.mimeType = candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
-    try {
-      this.recorder = this.mimeType
-        ? new MediaRecorder(this.stream, { mimeType: this.mimeType })
-        : new MediaRecorder(this.stream);
-    } catch (error) {
-      this.stream.getTracks().forEach((t) => t.stop());
-      this.stream = null;
-      return { ok: false, error: error instanceof Error ? error.message : 'Recorder could not start.' };
-    }
-    this.recorder.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0) this.chunks.push(event.data);
-    };
-    track?.addEventListener('ended', () => {
-      if (this.active) this.onEnded?.();
-    });
-    this.recorder.start(1000);
-    this.active = true;
+    this.status = 'recording';
+    this.capTimer = window.setTimeout(() => this.onEnded?.(), MAX_RECORDING_MS);
     this.log('session-start', `mode=${mode}; goal=${goal}`);
     this.log('mode', mode);
     return { ok: true };
@@ -74,38 +100,48 @@ export class StudyRecorder {
   }
 
   log(type: StudyEvent['type'], detail: string, state?: StudyEvent['state']): void {
-    if (!this.sessionId) return;
+    if (!this.sessionId || this.status !== 'recording') return;
     this.events.push({
       id: newId('ev'),
       sessionId: this.sessionId,
       t: Date.now(),
+      elapsed: Math.round(performance.now() - this.startPerf),
       type,
       detail,
       state,
+      mode: this.mode,
     });
   }
 
-  async stop(): Promise<StudyRecord | null> {
-    if (!this.active || !this.recorder) {
-      this.active = false;
-      return null;
-    }
+  stop(): Promise<StudyRecord | null> {
+    if (this.stopping) return this.stopping;
+    if (this.status !== 'recording' || !this.recorder) return Promise.resolve(null);
+    this.stopping = this.finish().finally(() => {
+      this.stopping = null;
+    });
+    return this.stopping;
+  }
+
+  private async finish(): Promise<StudyRecord | null> {
     this.log('session-end', 'recording stopped');
-    const recorder = this.recorder;
+    this.status = 'stopping';
+    const recorder = this.recorder!;
     const chunks = this.chunks;
+    let finalized = false;
     const ended = new Promise<void>((resolve) => {
-      recorder.addEventListener('stop', () => resolve(), { once: true });
+      recorder.addEventListener('stop', () => {
+        finalized = true;
+        resolve();
+      }, { once: true });
     });
     try {
       if (recorder.state !== 'inactive') recorder.stop();
+      else finalized = true;
     } catch {
       /* already stopped */
     }
     await Promise.race([ended, new Promise((resolve) => setTimeout(resolve, 2500))]);
-    this.stream?.getTracks().forEach((t) => t.stop());
-    this.recorder = null;
-    this.stream = null;
-    this.active = false;
+    this.cleanup();
     const record: StudyRecord = {
       id: newId('study'),
       sessionId: this.sessionId,
@@ -113,12 +149,14 @@ export class StudyRecorder {
       mode: this.mode,
       startedAt: this.startedAt,
       endedAt: Date.now(),
-      events: this.events.map((e) => ({ t: e.t, type: e.type, detail: e.detail, state: e.state })),
+      events: this.events.map((e) => ({ t: e.t, elapsed: e.elapsed, type: e.type, detail: e.detail, state: e.state, mode: e.mode })),
       video: chunks.length ? new Blob(chunks, { type: this.mimeType || 'video/webm' }) : undefined,
       mimeType: this.mimeType,
+      incomplete: !finalized || this.captureError,
     };
     this.sessionId = '';
     this.events = [];
+    this.status = 'idle';
     return record;
   }
 }
@@ -131,11 +169,11 @@ export function studyCsv(record: StudyRecord): string {
       [
         record.sessionId,
         new Date(event.t).toISOString(),
-        Math.max(0, event.t - record.startedAt),
+        event.elapsed ?? Math.max(0, event.t - record.startedAt),
         event.type,
         event.state ?? '',
-        record.mode,
-        detail,
+        event.mode ?? record.mode,
+        event.type === 'session-end' && record.incomplete ? `"${String(event.detail).replace(/"/g, '""')}; INCOMPLETE recording"` : detail,
       ].join(','),
     );
   }
