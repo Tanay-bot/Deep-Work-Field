@@ -70,7 +70,7 @@ const deadline = Date.now() + 20000;
 let state;
 while (Date.now() < deadline) {
   state = await panel.evaluate(() => chrome.storage.local.get(['dwf:pending', 'dwf:lastResult']));
-  if (Object.keys(state['dwf:pending'] ?? {}).length === 0 && state['dwf:lastResult']?.status !== 'pending') break;
+  if (Object.keys(state['dwf:pending'] ?? {}).length === 0 && state['dwf:lastResult']?.status !== 'restoring') break;
   await new Promise((r) => setTimeout(r, 300));
 }
 const pendingLeft = Object.keys(state?.['dwf:pending'] ?? {}).length;
@@ -173,7 +173,7 @@ for (const p of context.pages()) {
     let lr;
     while (Date.now() < deadline2) {
       lr = (await panel.evaluate(() => chrome.storage.local.get('dwf:lastResult')))['dwf:lastResult'];
-      if (lr?.checkpointId === pdfCp.id && lr.status !== 'pending') break;
+      if (lr?.checkpointId === pdfCp.id && lr.status !== 'restoring') break;
       await new Promise((r) => setTimeout(r, 400));
     }
     const restored = context.pages().find((p) => p.url().includes('/pdf/viewer.html'));

@@ -1,5 +1,5 @@
 declare const chrome: any;
-export {};
+import type { RestoreStatus } from '../../shared/src/session';
 
 interface PopupCheckpoint {
   id: string;
@@ -49,14 +49,14 @@ let onSavedPage = false;
 
 function describeResult(last: any): void {
   if (!last) return;
-  const map: Record<string, [string, Kind]> = {
-    pending: ['Restore tab opened; checking the passage…', 'busy'],
+  const map: Partial<Record<RestoreStatus, [string, Kind]>> = {
+    restoring: ['Restore tab opened; checking the passage…', 'busy'],
     verified: [`Verified: back at your place${last.landing === 'dom-scroll' ? ' (landed by the extension’s scroll)' : ''}.`, 'ok'],
     ambiguous: ['Multiple matching passages on that page, so none was picked. Saved context is shown there.', 'warn'],
     'saved-context': [`Could not verify (${last.reason}); saved context is shown on the page.`, 'warn'],
     cancelled: ['The restore tab was closed before it was checked.', 'muted'],
   };
-  const hit = map[last.status];
+  const hit = map[last.status as RestoreStatus];
   if (hit && Date.now() - (last.at ?? 0) < 10 * 60 * 1000) setStatus(hit[0], hit[1]);
 }
 

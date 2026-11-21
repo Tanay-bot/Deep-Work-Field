@@ -377,8 +377,6 @@ export class Galaxy {
     this.targetWeights.set(w[0], w[1], w[2], w[3]);
     this.setPalette(state);
     this.pulse = 1;
-    document.documentElement.style.setProperty('--state', PALETTE[state].css);
-    document.documentElement.dataset.focus = state;
   }
 
   /** 0..1 page scroll progress; dollies the camera through the disc. */

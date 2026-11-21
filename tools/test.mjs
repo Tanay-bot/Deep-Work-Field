@@ -20,6 +20,7 @@ const entry = `
   export { focusByHour } from '${root}/shared/src/planner.ts';
   export { matchScreen } from '${root}/shared/src/screen.ts';
   export { correctionVote } from '${root}/shared/src/knn.ts';
+  export { SessionStore, restoreStatusFromResult } from '${root}/shared/src/session.ts';
   export { embedText, EMBEDDING_VERSION } from '${root}/shared/src/embed.ts';
   export { DEFAULT_THRESHOLDS } from '${root}/shared/src/config.ts';
 `;
@@ -199,6 +200,19 @@ await run('corrections: one vote per source moment, other embedder versions igno
   if (r2.neighbors !== 0) return 'old-version corrections were used';
   const lab = Array.from({ length: 5 }, (_, i) => ({ ...base, id: `l${i}`, createdAt: i, traceId: 'same', lab: true }));
   return DWF.correctionVote(lab, e, 'g', 5, 0.3, 4).decision === 'on-task' || 'lab simulation no longer overrides';
+});
+
+// 16. Session store: one vocabulary, Resume-only means detection off, no-op sets are silent.
+await run('session store: shared restore vocabulary; resume-only forces focus off; no redundant renders', '<p>x</p>', async () => {
+  const st = new DWF.SessionStore({ sessionId: null, goal: 'g', mode: 'full', focus: 'FOCUSED', source: 'none', checkpoint: null, restore: { status: 'none' } });
+  let renders = 0;
+  st.subscribe(() => renders++);
+  st.set({ focus: 'FOCUSED' });
+  if (renders !== 1) return `no-op set re-rendered (${renders})`;
+  st.set({ mode: 'resume-only', focus: 'DRIFTING' });
+  if (st.get().focus !== 'off') return `resume-only focus was ${st.get().focus}`;
+  const map = [DWF.restoreStatusFromResult({ ok: true, reason: 'ok' }), DWF.restoreStatusFromResult({ ok: false, reason: 'ambiguous' }), DWF.restoreStatusFromResult({ ok: false, reason: 'no-match' })];
+  return map.join(',') === 'verified,ambiguous,saved-context' || map.join(',');
 });
 
 // 11. Chrome's own scroll-to-text must land the right 4b — no app scrolling.

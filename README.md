@@ -158,6 +158,12 @@ ablation-style record of decisions logged while corrections were active, not a c
 - **Planner (shipped)**: focus-by-hour curve from saved *live* sessions only (scripted demo samples
   are excluded); an hour is suggested only after ~30 minutes of decided samples.
 - **Capybara constellation (shipped)**: type `capybara` anywhere outside a text field.
+- **One session state (shipped)**: `shared/src/session.ts` holds the typed session snapshot (goal,
+  mode, focus — `off` in Resume-only —, signal source, checkpoint, restore) and the single restore
+  vocabulary (`saved`, `restoring`, `verified`, `ambiguous`, `saved-context`, `unavailable`,
+  `cancelled`) used by the web app, worker, popup and PDF viewer. The web UI renders from the store
+  (`dwf:session` event for presentation code); the extension reports its restore outcomes into the
+  listening web session over the same port.
 - **Narrow site access (shipped)**: the extension asks for **no site access at install**
   (`host_permissions: []`, `optional_host_permissions: ["<all_urls>"]`). Saving or returning to a
   passage asks for that one site from the popup; the content script is then registered only for
@@ -203,7 +209,7 @@ production URL. Add any custom domain there before using the bridge.
 ### Automated checks
 
 ```bash
-npm test                      # 13 Chromium checks on shared/ capture, verify, fragments, engine
+npm test                      # 16 checks on shared/ capture, verify, fragments, engine
 npm run build:extension && npm run dev   # then, in another shell:
 DWF_E2E=1 npm run build:extension && node tools/extension-e2e.mjs   # full extension flow (site access pre-granted)
 npm run build:extension && node tools/extension-noperm-e2e.mjs      # shipped build, no site access

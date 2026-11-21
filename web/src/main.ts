@@ -7,6 +7,7 @@ import { captureCheckpointFromElement, newId, pickAnchorElement } from '../../sh
 import { embedText, EMBEDDING_VERSION } from '../../shared/src/embed';
 import { matchScreen, type ScreenSample } from '../../shared/src/screen';
 import { focusByHour } from '../../shared/src/planner';
+import { SessionStore, restoreStatusFromResult, type SessionSnapshot } from '../../shared/src/session';
 import { correctionVote } from '../../shared/src/knn';
 import { FocusEngine, type EngineDecision } from '../../shared/src/engine';
 import './lib/fx';
@@ -225,6 +226,41 @@ const dom = {
 
 let toastTimer = 0;
 
+/** Single source of truth for session status; the UI renders from it. */
+const session = new SessionStore({
+  sessionId: null,
+  goal: state.goal,
+  mode: state.mode,
+  focus: state.mode === 'resume-only' ? 'off' : 'FOCUSED',
+  source: 'none',
+  checkpoint: null,
+  restore: { status: 'none' },
+});
+
+const STATE_COLOR: Record<SessionSnapshot['focus'], string> = {
+  FOCUSED: '#ffb547',
+  WRITING: '#6ff5d2',
+  UNCERTAIN: '#b8b2d8',
+  DRIFTING: '#ff4d2e',
+  off: '#b8b2d8',
+};
+
+function renderSession(snap: SessionSnapshot): void {
+  const focus = snap.focus;
+  const shape: FocusState = focus === 'off' ? 'FOCUSED' : focus;
+  dom.statePill.textContent = focus === 'off' ? 'Detection off' : focus;
+  dom.statePill.dataset.state = shape;
+  dom.galaxyState.textContent = focus === 'off' ? 'Detection off' : focus;
+  dom.galaxyState.dataset.state = shape;
+  dom.miniPanel.dataset.state = shape;
+  // Page colour and data-focus come from the session, not the renderer, so
+  // the static no-WebGL field follows the state too.
+  document.documentElement.dataset.focus = focus === 'off' ? 'UNCERTAIN' : focus;
+  document.documentElement.style.setProperty('--state', STATE_COLOR[focus]);
+  state.galaxy?.setState(shape);
+  window.dispatchEvent(new CustomEvent('dwf:session', { detail: snap }));
+}
+
 function toast(message: string, kind: 'info' | 'ok' | 'warn' = 'info'): void {
   dom.toast.textContent = message;
   dom.toast.dataset.kind = kind;
@@ -261,7 +297,8 @@ function mountGalaxy(): void {
     .then((galaxy) => {
       state.galaxy = galaxy;
       dom.galaxyBackend.textContent = 'WebGL2';
-      galaxy.setState(state.mode === 'resume-only' ? 'FOCUSED' : ((state.trace[state.trace.length - 1]?.state ?? 'FOCUSED') as FocusState));
+      const focus = session.get().focus;
+      galaxy.setState(focus === 'off' ? 'FOCUSED' : focus);
     })
     .catch(fallback);
 }
@@ -313,13 +350,7 @@ function setupVoice(): void {
 }
 
 function applyState(focusState: FocusState): void {
-  dom.statePill.textContent = focusState;
-  dom.statePill.dataset.state = focusState;
-  // Resume-only has no detection: say so instead of showing a confident FOCUSED.
-  dom.galaxyState.textContent = state.mode === 'resume-only' ? 'Detection off' : focusState;
-  dom.galaxyState.dataset.state = focusState;
-  dom.miniPanel.dataset.state = focusState;
-  state.galaxy?.setState(focusState);
+  session.set({ focus: focusState });
   if (state.lastStateLog !== focusState) {
     state.lastStateLog = focusState;
     state.study.log('state', focusState, focusState);
@@ -329,6 +360,13 @@ function applyState(focusState: FocusState): void {
 function renderCheckpoint(): void {
   // Pre-synthesize the nudge for this checkpoint so the HD voice is instant.
   state.voice.prepare(spokenCheckpoint(state.checkpoint));
+  const current = state.checkpoint;
+  if (session.get().checkpoint?.id !== current?.id) {
+    session.set({
+      checkpoint: current ? { id: current.id, problemId: current.problemId, anchor: current.anchor } : null,
+      restore: { status: current ? 'saved' : 'none' },
+    });
+  }
   const cp = state.checkpoint;
   dom.checkpointEmpty.hidden = !!cp;
   dom.checkpointBody.hidden = !cp;
@@ -620,6 +658,7 @@ function startScenario(): void {
   dom.demoStep.textContent = 'Simulated drift running: on-task lecture, then writing, then a distraction. The nudge waits for the 3-second hold.';
   dom.stepDrift.disabled = true;
   renderTrace();
+  session.set({ source: 'scripted' });
   state.scenarioTimer = window.setInterval(scenarioTick, state.thresholds.sessionTickMs);
   scenarioTick();
 }
@@ -658,10 +697,13 @@ function startLive(): void {
   dom.nudge.hidden = true;
   port.onMessage.addListener((message: ScreenSample & { type: string }) => {
     if (message?.type === 'screen') void liveSample(message);
+    const m = message as unknown as { type: string; status?: SessionSnapshot['restore']['status']; reason?: string; landing?: 'native' | 'dom-scroll' };
+    if (m?.type === 'restore' && m.status) session.set({ restore: { status: m.status, reason: m.reason, landing: m.landing, via: 'extension' } });
   });
   port.onDisconnect.addListener(() => {
     if (state.livePort === port) stopLive(false, 'The extension disconnected (it may have been reloaded or disabled).');
   });
+  session.set({ source: 'dom' });
   dom.liveBtn.textContent = 'Stop live';
   dom.stepDrift.disabled = true;
   dom.demoStep.textContent =
@@ -685,6 +727,7 @@ function stopLive(silent = false, reason = ''): void {
   } catch {
     /* already closed */
   }
+  if (session.get().source === 'dom') session.set({ source: 'none' });
   dom.liveBtn.textContent = 'Use my real screen';
   dom.stepDrift.disabled = !state.checkpoint;
   if (!silent && port) {
@@ -767,6 +810,7 @@ async function startOcr(): Promise<void> {
   state.milestones = state.checkpoint ? [{ t: Date.now(), kind: 'saved', label: `Saved ${state.checkpoint.problemId}` }] : [];
   state.study.log('mode', `${state.mode}; ocr`);
   dom.ocrBtn.disabled = false;
+  session.set({ source: 'ocr' });
   dom.ocrBtn.textContent = 'Stop watching';
   dom.stepDrift.disabled = true;
   dom.demoStep.textContent = `OCR: reading ${state.ocr.label} every 3 s on this device (no frames are stored). Works for apps outside Chrome.`;
@@ -781,6 +825,7 @@ function stopOcr(reason = 'OCR stopped.'): void {
   state.ocr.onSample = null;
   state.ocr.onEnded = null;
   state.ocr.stop();
+  if (session.get().source === 'ocr') session.set({ source: 'none' });
   dom.ocrBtn.textContent = 'Watch another app (OCR)';
   dom.stepDrift.disabled = !state.checkpoint;
   dom.liveStatus.textContent = reason;
@@ -789,6 +834,7 @@ function stopOcr(reason = 'OCR stopped.'): void {
 function beginSession(): void {
   if (state.sessionId) return;
   state.sessionId = newId('sess');
+  session.set({ sessionId: state.sessionId, goal: state.goal });
   state.sessionStartedAt = Date.now();
   state.session = {
     id: state.sessionId,
@@ -950,6 +996,7 @@ async function resume(): Promise<void> {
   }
   closeWorksheet();
   state.worksheet = win;
+  session.set({ restore: { status: 'restoring', via: 'web' } });
   dom.verifyStatus.hidden = false;
   dom.verifyStatus.dataset.kind = 'pending';
   dom.verifyStatus.innerHTML = '<strong>Opening the fragment and checking the passage…</strong><span class="mono">Waiting for the page and Chrome\'s scroll-to-text navigation.</span>';
@@ -957,6 +1004,7 @@ async function resume(): Promise<void> {
   if (!loaded) {
     dom.verifyStatus.dataset.kind = 'fail';
     dom.verifyStatus.textContent = 'The page did not load, so there is nothing to verify.';
+    session.set({ restore: { status: 'saved-context', reason: 'unreadable', via: 'web' } });
     showSavedContext(checkpoint, 'unreadable');
     return;
   }
@@ -977,11 +1025,13 @@ async function resume(): Promise<void> {
       `<strong>Restore not verified.</strong> ${escapeHtml(result.reason)} · ${result.candidates} candidate(s) · ${result.attempts} attempt(s).` +
       `<span class="mono">${escapeHtml(childState)} · showing saved context instead of claiming a resume.</span>`;
     state.study.log('restore-failed', result.reason);
+    session.set({ restore: { status: restoreStatusFromResult(result), reason: result.reason, via: 'web' } });
     milestone('failed', result.reason === 'ambiguous' ? 'Ambiguous' : 'Not verified');
     showSavedContext(checkpoint, result.reason);
     return;
   }
   state.restored = true;
+  session.set({ restore: { status: 'verified', landing: result.landing, via: 'web' } });
   milestone('verified', 'Verified');
   dom.verifyStatus.dataset.kind = 'ok';
   dom.verifyStatus.innerHTML =
@@ -1199,6 +1249,7 @@ function resetThresholds(): void {
 
 function setMode(mode: Mode): void {
   state.mode = mode;
+  session.set({ mode, focus: mode === 'resume-only' ? 'off' : ((state.trace[state.trace.length - 1]?.state ?? 'FOCUSED') as FocusState) });
   dom.modeSelect.value = mode;
   dom.modePill.textContent = modeName(mode);
   localStorage.setItem(STORAGE.mode, mode);
@@ -1213,10 +1264,8 @@ function setMode(mode: Mode): void {
   if (mode === 'resume-only') {
     dom.nudge.hidden = true;
     stopScenario();
-    applyState('FOCUSED');
     toast('Resume-only: detection and nudges are off; checkpoints and restore still work.');
   } else {
-    applyState(state.trace[state.trace.length - 1]?.state ?? 'FOCUSED');
     toast(`${modeName(mode)} enabled.`);
   }
 }
@@ -1724,6 +1773,7 @@ function setupLanding(): void {
       dom.unsupportedExt.hidden = false;
     }
     dom.unsupportedUrl.textContent = parsed.href;
+    if (!state.extensionConnected) session.set({ restore: { status: 'unavailable', via: 'web' } });
     openDialog(dom.unsupportedDialog);
   });
   const upload = $('upload-input') as HTMLInputElement;
@@ -1882,6 +1932,7 @@ function registerServiceWorker(): void {
 }
 
 function setup(): void {
+  session.subscribe(renderSession);
   dom.modeSelect.value = state.mode;
   dom.modePill.textContent = modeName(state.mode);
   dom.freezePill.hidden = !state.frozen;

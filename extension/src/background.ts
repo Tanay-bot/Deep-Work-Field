@@ -1,5 +1,6 @@
 import type { Checkpoint, VerifyResult } from '../../shared/src/types';
 import { buildTextFragmentUrl } from '../../shared/src/fragments';
+import { restoreStatusFromResult } from '../../shared/src/session';
 
 const KEYS = {
   checkpoints: 'dwf:checkpoints',
@@ -210,7 +211,7 @@ async function restoreCheckpoint(id: string): Promise<{ ok: boolean; error?: str
     map[String(tab.id)] = op;
     await chrome.storage.local.set({
       [KEYS.pending]: map,
-      [KEYS.lastResult]: { checkpointId: id, restoreId: op.restoreId, status: 'pending', at: Date.now() },
+      [KEYS.lastResult]: { checkpointId: id, restoreId: op.restoreId, status: 'restoring', at: Date.now() },
     });
   });
   return { ok: true, url, restoreId: op.restoreId } as { ok: boolean; url: string; restoreId: string };
@@ -289,7 +290,7 @@ chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (
         [KEYS.lastResult]: {
           checkpointId: message.checkpointId,
           restoreId: id,
-          status: result.ok ? 'verified' : result.reason === 'ambiguous' ? 'ambiguous' : 'saved-context',
+          status: restoreStatusFromResult(result),
           reason: result.reason,
           landing: result.landing,
           attempts: result.attempts,
@@ -297,6 +298,8 @@ chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (
         },
       });
       await setBadge(result.ok ? '✓' : '!', result.ok ? '#45d6ab' : '#f0b429');
+      // Same vocabulary, straight into any listening web session.
+      post({ type: 'restore', status: restoreStatusFromResult(result), reason: result.reason, landing: result.landing });
       sendResponse({ ok: true });
     })();
     return true;
@@ -420,6 +423,7 @@ chrome.tabs.onRemoved.addListener((tabId: number) => {
       [KEYS.pending]: map,
       [KEYS.lastResult]: { checkpointId: entry.checkpoint.id, restoreId: entry.restoreId, status: 'cancelled', reason: 'tab-closed', at: Date.now() },
     });
+    post({ type: 'restore', status: 'cancelled', reason: 'tab-closed' });
   });
 });
 
