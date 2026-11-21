@@ -45,6 +45,8 @@ locally and can override later calls only on a 4-of-5 supermajority.
 - **Face cues**: MediaPipe Face Landmarker runs in the page (no frames stored or sent). A two-pose
   calibration — look at the screen, then at your notes — defines "head down" for you, so writing on
   paper reads as WRITING, not drift.
+- **OCR fallback**: for apps outside Chrome, share a window or screen and **Tesseract.js** reads it
+  on-device every 3 seconds; the text feeds the same matcher and engine.
 - **Voice** uses the browser's on-device speech synthesis.
 - **Galaxy** is a WebGL2 shader point cloud whose four shapes morph on the GPU with the focus state,
   plus a Document Picture-in-Picture mini-galaxy.
@@ -68,7 +70,7 @@ and records whether Chrome or the app's single fallback scroll put the passage o
   mode (real tabs) needs the extension; Full fusion live also needs the camera.
 - Face cues are real (MediaPipe) but have only been tested with a fake camera in CI and by hand —
   not measured on a study group. Head pose is a proxy for attention.
-- Kokoro voice and OCR are **not shipped** in this build.
+- Kokoro voice is **not shipped** in this build.
 - Text fragments do not work inside Google Docs (saved context only there).
 - The evaluation study has not been run with students yet; any numbers shown are a pilot. Main metric
   when it is run: "time to first qualifying answer edit".

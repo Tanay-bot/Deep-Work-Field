@@ -139,7 +139,12 @@ ablation-style record of decisions logged while corrections were active, not a c
   matcher alone would miss it), AP Bio homework 0.28, Minecraft / lofi / Instagram ≈ 0. It can only
   *raise* on-task evidence; the hashed embedder still keys correction memory.
 - **Kokoro**: not bundled; nudges use device `speechSynthesis`.
-- **Tesseract OCR**: not shipped. DOM text only.
+- **OCR fallback (shipped)**: **Watch another app (OCR)** shares a window or the whole screen; every
+  3 s one downscaled grayscale frame is read by Tesseract.js on-device (worker, wasm core and the
+  `eng` best_int model vendored in `web/public/tesseract`, ~11 MB; no CDN). The text goes through
+  the same goal matcher and engine as live tabs, with source `ocr`; frames are never stored. While
+  OCR runs it is the screen source and extension tab samples are ignored. Checked in Chromium on a
+  rendered test card (read correctly in 2.4 s with model load) and with a fake screen share.
 - **PDF route (shipped)**: on a PDF tab, the popup offers **Open this PDF in the Deep Work Field
   viewer** (`extension/pdf/viewer.html`, PDF.js). Pages render with a real text layer, so the same
   selection capture and unique-match verification run on PDFs; the page number is the tie-breaking

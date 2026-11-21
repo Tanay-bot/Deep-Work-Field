@@ -13,6 +13,7 @@ import './lib/fx';
 import type { Galaxy } from './lib/galaxy';
 import { Voice } from './lib/voice';
 import { FaceSensor } from './lib/face';
+import { ScreenReader } from './lib/ocr';
 import { loadSemantic, scaleSemantic, semanticSimilarity, semanticStatus } from './lib/semantic';
 import { StudyRecorder, studyCsv, downloadBlob } from './lib/study';
 import {
@@ -123,6 +124,7 @@ const state = {
   face: new FaceSensor(),
   faceTimer: 0,
   calibrating: false,
+  ocr: new ScreenReader(),
   milestones: [] as { t: number; kind: 'saved' | 'drift' | 'nudge' | 'verified' | 'edit' | 'failed'; label: string }[],
   lastStateLog: '' as FocusState | '',
 };
@@ -134,6 +136,7 @@ const dom = {
   modeSelect: $('mode-select') as HTMLSelectElement,
   extensionStatus: $('extension-status'),
   liveBtn: $('live-btn') as HTMLButtonElement,
+  ocrBtn: $('ocr-btn') as HTMLButtonElement,
   facePill: $('face-pill'),
   faceStatus: $('face-status'),
   facePreview: $('face-preview'),
@@ -557,6 +560,7 @@ function startScenario(): void {
   if (!state.engine) return;
   stopScenario();
   stopLive(true);
+  if (state.ocr.running) stopOcr();
   try {
     state.worksheet?.close();
   } catch {
@@ -654,6 +658,9 @@ function stopLive(silent = false, reason = ''): void {
 
 async function liveSample(sample: ScreenSample): Promise<void> {
   if (!state.engine || !state.sessionId || liveBusy) return;
+  // While OCR watches the whole screen it is the screen source; tab samples
+  // would describe a browser window the student may not be looking at.
+  if (state.ocr.running) return;
   let host = '';
   try {
     const url = new URL(sample.url);
@@ -665,21 +672,27 @@ async function liveSample(sample: ScreenSample): Promise<void> {
   } catch {
     host = 'unknown page';
   }
+  await scoreScreen(sample, 'dom', `Live tab ${host}`);
+}
+
+/** Shared scoring for live tabs (extension) and OCR: matcher → engine → trace. */
+async function scoreScreen(sample: ScreenSample, source: 'dom' | 'ocr', where: string): Promise<void> {
+  if (!state.engine || !state.sessionId || liveBusy) return;
   liveBusy = true;
   try {
     const match = matchScreen(state.goal, sample, state.checkpoint);
     let sim = match.sim;
     let reason = match.reason;
-    if (semanticStatus === 'ready') {
+    if (semanticStatus === 'ready' && `${sample.title}${sample.text}`.trim()) {
       // Semantic evidence can only raise on-task similarity (near-topic pages).
       const cosine = await semanticSimilarity(state.goal, `${sample.title}. ${sample.text}`.slice(0, 1200));
       const scaled = scaleSemantic(cosine);
       reason += `; meaning match ${cosine.toFixed(2)} (MiniLM)`;
       if (scaled > sim) sim = Number(scaled.toFixed(3));
     }
-    if (!state.engine || !state.sessionId || !state.livePort) return;
+    if (!state.engine || !state.sessionId || !(state.livePort || state.ocr.running)) return;
     if (state.face.running) state.liveFace = state.face.sample(state.thresholds.headDownPitchDeg);
-    const screenText = `${sample.title}${sample.text ? ' — ' + sample.text.slice(0, 240) : ''}`;
+    const screenText = `${sample.title}${sample.text ? (sample.title ? ' — ' : '') + sample.text.slice(0, 240) : ''}`;
     const face = state.liveFace;
     state.nudgeText = spokenCheckpoint(state.checkpoint);
     const decision = state.engine.update({
@@ -688,15 +701,52 @@ async function liveSample(sample: ScreenSample): Promise<void> {
       onTaskSimilarity: sim,
       embedding: embedText(`${sample.title} ${sample.text}`),
       face,
-      source: 'dom',
+      source,
     });
-    appendDecision(decision, { screenText, sim, face, source: 'dom' }, `Live tab ${host}: ${reason}.`);
-    dom.liveStatus.textContent = `Live · ${host} · ${reason} · ${decision.state}`;
+    appendDecision(decision, { screenText, sim, face, source }, `${where}: ${reason}.`);
+    dom.liveStatus.textContent = `${source === 'ocr' ? 'OCR' : 'Live'} · ${where} · ${reason} · ${decision.state}`;
   } catch {
-    /* a failed semantic call must not stop the stream; next sample retries */
+    /* a failed sample must not stop the stream; the next one retries */
   } finally {
     liveBusy = false;
   }
+}
+
+async function startOcr(): Promise<void> {
+  if (!state.engine) return;
+  stopScenario();
+  dom.ocrBtn.disabled = true;
+  try {
+    await state.ocr.start((label) => (dom.liveStatus.textContent = `OCR · ${label}`));
+  } catch (error) {
+    dom.ocrBtn.disabled = false;
+    const denied = error instanceof DOMException && error.name === 'NotAllowedError';
+    dom.liveStatus.textContent = denied ? 'OCR · screen sharing was not granted.' : 'OCR · the on-device reader could not start here.';
+    return;
+  }
+  state.engine.resetRun(Date.now());
+  state.trace = [];
+  state.selectedTrace = -1;
+  state.milestones = state.checkpoint ? [{ t: Date.now(), kind: 'saved', label: `Saved ${state.checkpoint.problemId}` }] : [];
+  state.study.log('mode', `${state.mode}; ocr`);
+  dom.ocrBtn.disabled = false;
+  dom.ocrBtn.textContent = 'Stop watching';
+  dom.stepDrift.disabled = true;
+  dom.demoStep.textContent = `OCR: reading ${state.ocr.label} every 3 s on this device (no frames are stored). Works for apps outside Chrome.`;
+  void loadSemantic().catch(() => undefined);
+  state.ocr.onSample = (ocr) =>
+    void scoreScreen({ url: 'screen://ocr', title: '', text: ocr.text, restricted: false, t: ocr.t }, 'ocr', `OCR of ${ocr.label} (confidence ${Math.round(ocr.confidence)}%)`);
+  state.ocr.onEnded = () => stopOcr('Screen sharing ended; OCR stopped.');
+  renderTrace();
+}
+
+function stopOcr(reason = 'OCR stopped.'): void {
+  state.ocr.onSample = null;
+  state.ocr.onEnded = null;
+  state.ocr.stop();
+  dom.ocrBtn.textContent = 'Watch another app (OCR)';
+  dom.stepDrift.disabled = !state.checkpoint;
+  dom.liveStatus.textContent = reason;
 }
 
 function beginSession(): void {
@@ -1465,6 +1515,14 @@ function setupCapybara(): void {
 }
 
 function setupLive(): void {
+  dom.ocrBtn.addEventListener('click', () => {
+    if (state.ocr.running) stopOcr();
+    else {
+      beginSession();
+      showSession();
+      void startOcr();
+    }
+  });
   setupCapybara();
   void renderPlanner();
   dom.faceStart.addEventListener('click', () => void startFace());
