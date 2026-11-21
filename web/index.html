@@ -104,13 +104,13 @@
           <thead><tr><th>Content</th><th>Hosted demo</th><th>Extension</th></tr></thead>
           <tbody>
             <tr><td>Built-in worksheets</td><td class="yes">Verified</td><td class="yes">Verified</td></tr>
-            <tr><td>Uploaded HTML</td><td class="yes">Verified</td><td class="yes">Verified</td></tr>
-            <tr><td>Pasted third-party URL</td><td class="no">Install screen</td><td class="yes">Verified</td></tr>
+            <tr><td>Uploaded HTML</td><td class="yes">Verified</td><td class="warn">Implemented, not yet verified</td></tr>
+            <tr><td>Pasted third-party URL</td><td class="no">Install screen</td><td class="warn">Implemented, not yet verified</td></tr>
             <tr><td>Google Docs</td><td class="no">—</td><td class="warn">Saved context only</td></tr>
             <tr><td>Web PDFs</td><td class="no">—</td><td class="no">Not shipped</td></tr>
           </tbody>
         </table>
-        <p class="micro">Text fragments do not work inside Google Docs, so the UI never claims a verified restore there.</p>
+        <p class="micro">Extension built-in restore was verified end-to-end in Chromium 141. Uploaded and pasted pages use the same content script; they are implemented but not yet verified in that harness. Text fragments do not work inside Google Docs, so the UI never claims a verified restore there.</p>
       </article>
       <article class="panel">
         <p class="section-kicker">Install</p>

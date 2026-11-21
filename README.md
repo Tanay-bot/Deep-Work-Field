@@ -93,9 +93,9 @@ whose range is in view passes verification.
 
 | Content | Hosted demo (no install) | Extension |
 | --- | --- | --- |
-| Built-in demo worksheets | Verified restore | Verified restore |
-| Uploaded HTML worksheet | Verified restore (blob URL, processed locally) | Verified restore |
-| Pasted third-party URL | Opens the page, then “Install the extension / saved context only” screen | Verified restore |
+| Built-in demo worksheets | Verified restore | **Verified** end-to-end in Chromium 141 |
+| Uploaded HTML worksheet | Verified restore (blob URL, processed locally) | Implemented; same DOM path, not yet verified in the extension harness |
+| Pasted third-party URL | Opens the page, then “Install the extension / saved context only” screen | Implemented for DOM pages; not yet verified in the extension harness |
 | Google Docs | Not supported | Saved context only |
 | Native apps | Not supported | Not supported (OCR fallback not shipped) |
 | Web PDFs | Not supported | Not shipped (PDF route is a stub) |
@@ -160,12 +160,32 @@ network.
 `externally_connectable` currently lists localhost:3000, `*.style.dev`, the preview URL and the
 production URL. Add any custom domain there before using the bridge.
 
+### Extension end-to-end check
+
+The built zip was unzipped and loaded into full Chromium 141.0.7390.37 (Playwright, headless) with
+`--disable-extensions-except` / `--load-extension`. The popup's own **Save** and **Restore** buttons
+were clicked; the service worker, content script, text-fragment tab and storage were all exercised:
+
+- selected Part II **4b. Limiting reagent** on the demo worksheet and saved it from the popup;
+- closed the worksheet tab and restored from the popup: the new tab carried the prefix/suffix text
+  fragment, the content script verified the **problem** 4b (not the answer-key twin), 4b was in the
+  viewport at `scrollY 1008`, and `4b-key` was offscreen at `top 1727`;
+- the first qualifying edit in the 4b answer was recorded (`problemId: 4b`, 82 chars);
+- corrupting the saved anchor produced the **Saved context only** banner after 14 attempts, with no
+  false verified claim.
+
+This is a headless Chromium run. The `chrome://extensions` **Load unpacked** click and the browser
+**toolbar popup** were not automated: the unpacked folder was loaded with the equivalent
+`--load-extension` flag, and `popup.html` was opened directly as an extension page. A normal desktop
+Chrome toolbar popup uses the same page and handlers, but that final browser-UI click is not claimed
+as tested.
+
 ## Checks run before the 3:45 PM freeze
 
 | # | Check | Result |
 | --- | --- | --- |
 | 1 | Fresh browser storage → deployed link → Try it now → drift → nudge → Resume loop, no install | **PASS** on both the public preview and the published production URL: capture, 3 s hold, spoken/banner nudge, verified landing, first qualifying edit. Verified with Playwright on a new origin (not a brand-new desktop Chrome profile). |
-| 2 | Extension loads unpacked from the zip using README steps alone | **NOT VERIFIED**: built, zipped, manifest parsed, all referenced files present; no extension-capable Chrome in this cloud workspace. |
+| 2 | Extension loads unpacked from the zip using README steps alone | **PASS (headless Chromium 141, equivalent load)**: built zip unzipped and loaded with `--load-extension`; service worker started, popup Save and Restore clicked. Saved Part II 4b, closed the tab, restored to 4b with the answer key offscreen, logged the first 4b edit, and showed Saved context only for a corrupted anchor. The `chrome://extensions` UI click and actual toolbar popup were not automated; `popup.html` was opened directly. |
 | 3 | Two identical “4b” headings + resize → restore lands on the right one and verification passes | **PASS**: both headings present; restore at 480×720 during navigation landed on Part II, answer key offscreen, status “Verified restore… Landed on the Part II problem 4b, not the answer key.” |
 | 4 | Unsupported URL → install extension / saved context only screen | **PASS**: third-party URL opens, dialog shows “The hosted demo cannot verify here” and “Saved context only”. |
 | 5 | Wi-Fi off → opening-shot sequence end to end | **PASS** on the preview (same build): service worker controlled the page; offline shell, worksheet, capture, nudge and verified resume all completed. |
@@ -175,8 +195,9 @@ Also exercised: uploaded-HTML capture + blob-URL verified restore, study recordi
 display stream (CSV auto-download, WebM blob, IndexedDB record), Document PiP request, threshold freeze,
 and graceful “recording was not started” UI when screen capture is denied.
 
-Not verified here: a real Chrome profile with the unpacked extension, real MediaPipe/Kokoro model
-startup, and real student evaluation sessions. The evaluation script was run on the sample fixtures.
+Not verified here: the actual toolbar popup and a full desktop Chrome profile (the extension run used
+headless Chromium 141 with `popup.html` opened directly), real MediaPipe/Kokoro model startup, and real
+student evaluation sessions. The evaluation script was run on the sample fixtures.
 
 ## Development notes
 
