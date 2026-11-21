@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview --config web/vite.config.ts --host 0.0.0.0 --port 4173",
     "build:extension": "node extension/build.mjs",
-    "eval": "node tools/results.mjs"
+    "eval": "node tools/results.mjs",
+    "test": "node tools/test.mjs"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.2.6",

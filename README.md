@@ -160,6 +160,38 @@ network.
 `externally_connectable` currently lists localhost:3000, `*.style.dev`, the preview URL and the
 production URL. Add any custom domain there before using the bridge.
 
+### Automated checks
+
+```bash
+npm test                      # 10 Chromium checks on shared/ capture, verify, fragments, engine
+npm run build:extension && npm run dev   # then, in another shell:
+node tools/extension-e2e.mjs  # loads the unpacked extension, saves 4b, runs two restores at once
+```
+
+`npm test` covers: the twin-4b worksheet (never the answer key), a harder fixture where heading
+**and** surrounding lines are identical (must report `ambiguous`, never pick by visibility), a saved
+problem id breaking that tie, selecting the 2nd of two repeated phrases, a word split by inline
+markup and a multi-node selection, hidden ancestors, length-changing case folding (İ, ß), spec-correct
+fragment encoding with an app hash kept, a sampling gap that must restart the 3 s drift hold, and one
+nudge per drift episode.
+
+Restore guarantees enforced by the code:
+
+- **Unique match or nothing.** Every occurrence whose anchor, prefix and suffix match is collected
+  first. A saved problem container may break a tie; viewport position never does. Still tied →
+  `ambiguous` ("Multiple matching passages"), treated as a failure.
+- **Landing is recorded.** `landing: native` means the browser/page put the passage in view;
+  `dom-scroll` means the app's single fallback scroll did (it scrolls at most once).
+- **Selection capture** maps the selected range's endpoints into the text index; an unmappable
+  selection is refused, never swapped for another occurrence.
+- **One operation per restore.** The extension opens a blank tab, registers `{restoreId, tabId}`,
+  then navigates. Replies must carry the matching `restoreId`; stale ones are ignored. Restores time
+  out after 60 s and are cancelled when their tab closes. Checkpoint writes are serialized.
+- **First edit** is measured from the answer field's value at restore time, in the field inside the
+  verified passage's container; if none can be linked the metric is reported unavailable.
+- **Correction memory** may always suppress a drift, but may only create one from an UNCERTAIN call
+  with a present face; the trace records the provisional call separately.
+
 ### Extension end-to-end check
 
 The built zip was unzipped and loaded into full Chromium 141.0.7390.37 (Playwright, headless) with

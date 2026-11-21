@@ -691,7 +691,8 @@ async function resume(): Promise<void> {
   dom.verifyStatus.dataset.kind = 'ok';
   dom.verifyStatus.innerHTML =
     `<strong>Verified restore.</strong> ${escapeHtml(landingNote(win, checkpoint))} ` +
-    `Matched ${result.candidates} candidate(s); the passage is inside the viewport after ${result.attempts} attempt(s).` +
+    `Exactly one of ${result.candidates} “${escapeHtml(checkpoint.anchor)}” occurrence(s) matched the surrounding text, and it is in view ` +
+    `(${result.landing === 'dom-scroll' ? 'landed by one app scroll; the browser fragment did not land it' : 'landed by the browser'}).` +
     `<span class="mono">prefix “${escapeHtml(checkpoint.prefix)}” · suffix “${escapeHtml(checkpoint.suffix)}”</span>`;
   dom.checkpointAge.textContent = 'restored just now';
   dom.firstEditStatus.hidden = true;
@@ -715,7 +716,7 @@ async function resume(): Promise<void> {
   } catch {
     /* page closed */
   }
-  attachEditTracking(win, checkpoint);
+  attachEditTracking(win, checkpoint, result.range);
   stopScenario();
   dom.stepDrift.disabled = false;
   dom.demoStep.textContent =
@@ -743,16 +744,39 @@ function landingNote(win: Window, checkpoint: Checkpoint): string {
   return 'Matched the saved prefix/suffix with the passage in view.';
 }
 
-function attachEditTracking(win: Window, checkpoint: Checkpoint): void {
+let detachEditTracking: (() => void) | null = null;
+
+/**
+ * Scoped to the passage that was actually verified: the answer field must sit
+ * inside the same problem container as the verified range. If none can be
+ * linked with confidence, the first-edit metric is left unavailable rather
+ * than guessed. Progress is measured from the field's value at restore time,
+ * so a prefilled answer cannot qualify on a single keystroke.
+ */
+function attachEditTracking(win: Window, checkpoint: Checkpoint, verified?: Range): void {
+  detachEditTracking?.();
+  detachEditTracking = null;
   try {
     const doc = win.document;
-    const host = checkpoint.selectorHint ? doc.querySelector(checkpoint.selectorHint) : null;
-    const region = host ?? doc.querySelector('[data-answer-region]') ?? doc.body;
-    const field = region.querySelector('textarea,input') as HTMLInputElement | HTMLTextAreaElement | null;
-    if (!field) return;
-    const handler = () => onAnswerInput(field.value.length, field.value.includes('\n'));
+    const origin = verified?.startContainer.parentElement ?? null;
+    const host =
+      (origin?.closest('[data-answer-region],[data-problem-id]') as Element | null) ??
+      (checkpoint.selectorHint ? doc.querySelector(checkpoint.selectorHint) : null);
+    const field = host?.querySelector('textarea,input') as HTMLInputElement | HTMLTextAreaElement | null;
+    if (!field) {
+      dom.firstEditStatus.hidden = false;
+      dom.firstEditStatus.textContent = 'No answer field is linked to the verified passage, so first-edit timing is unavailable here.';
+      return;
+    }
+    const baseline = field.value;
+    const handler = () => {
+      const value = field.value;
+      const added = Math.max(0, value.length - baseline.length);
+      const newline = (value.match(/\n/g)?.length ?? 0) > (baseline.match(/\n/g)?.length ?? 0);
+      onAnswerInput(added, newline);
+    };
     field.addEventListener('input', handler);
-    field.focus();
+    detachEditTracking = () => field.removeEventListener('input', handler);
   } catch {
     /* closed or cross-origin */
   }
@@ -763,15 +787,15 @@ function onAnswerInput(chars: number, newline: boolean): void {
   const qualifies = chars >= state.thresholds.minQualifyingChars || newline;
   dom.firstEditStatus.hidden = false;
   if (state.firstEditLogged) {
-    dom.firstEditStatus.textContent = `Answer edit in progress · ${chars} chars · first qualifying edit already recorded.`;
+    dom.firstEditStatus.textContent = `Answer edit in progress · ${chars} new chars · first qualifying edit already recorded.`;
     return;
   }
   if (!qualifies) {
-    dom.firstEditStatus.textContent = `Answer region: ${chars}/${state.thresholds.minQualifyingChars} characters before this counts as the first qualifying edit.`;
+    dom.firstEditStatus.textContent = `Answer region: ${chars}/${state.thresholds.minQualifyingChars} new characters before this counts as the first qualifying edit.`;
     return;
   }
   state.firstEditLogged = true;
-  dom.firstEditStatus.textContent = `First qualifying edit recorded at problem ${state.checkpoint?.problemId ?? '4b'} (${chars} chars${newline ? ', newline' : ''}).`;
+  dom.firstEditStatus.textContent = `First qualifying edit recorded at problem ${state.checkpoint?.problemId ?? '4b'} (${chars} new chars${newline ? ', newline' : ''}).`;
   state.study.log('first-edit', `chars=${chars}; newline=${newline}`, 'WRITING');
   toast('First qualifying edit recorded.', 'ok');
 }
@@ -782,6 +806,7 @@ function showSavedContext(checkpoint: Checkpoint, reason: string): void {
     'context-mismatch': 'The anchor was found, but the text immediately before or after it did not match the checkpoint.',
     'not-in-viewport': 'The passage matched, but it never landed inside the viewport.',
     unreadable: 'The page could not be read, or it was closed while checking.',
+    ambiguous: 'Multiple matching passages: more than one place on the page has the same text before and after it, so the app will not pick one for you.',
     ok: 'The check did not complete.',
   };
   dom.savedReason.textContent = reasons[reason] ?? 'The restore could not be verified.';

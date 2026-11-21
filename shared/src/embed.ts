@@ -21,12 +21,16 @@ function fnv1a(str: string): number {
 
 export const EMBEDDING_DIMS = 192;
 
+const SHORT_STOPWORDS = new Set(['an', 'as', 'at', 'be', 'by', 'do', 'go', 'he', 'if', 'in', 'is', 'it', 'me', 'my', 'no', 'of', 'oh', 'ok', 'on', 'or', 'so', 'to', 'up', 'us', 'we']);
+
 export function embedText(text: string, dims = EMBEDDING_DIMS): number[] {
   const vec = new Array<number>(dims).fill(0);
   const tokens = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
   const counts = new Map<string, number>();
   for (const token of tokens) {
-    if (token.length < 3 || STOPWORDS.has(token)) continue;
+    // Keep short task identifiers and element symbols ("4b", "al", "cl"):
+    // two-character tokens survive unless they are common function words.
+    if (token.length < 2 || STOPWORDS.has(token) || SHORT_STOPWORDS.has(token)) continue;
     counts.set(token, (counts.get(token) ?? 0) + 1);
   }
   for (const [token, count] of counts) {

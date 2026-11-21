@@ -1,11 +1,12 @@
 import type { Checkpoint, VerifyResult } from '../../shared/src/types';
-import { captureCheckpointFromElement, findAnswerRegion, pickAnchorElement } from '../../shared/src/checkpoint';
+import { captureCheckpointFromElement, captureCheckpointFromRange, pickAnchorElement } from '../../shared/src/checkpoint';
 import { verifyCheckpointAsync } from '../../shared/src/verify';
 
 declare const chrome: any;
 
 let activeCheckpoint: Checkpoint | null = null;
 let editLogged = false;
+let detachEdit: (() => void) | null = null;
 
 function shadowHost(id: string): { host: HTMLElement; root: ShadowRoot } {
   let host = document.getElementById(id);
@@ -59,7 +60,7 @@ function showSavedContext(checkpoint: Checkpoint, result: VerifyResult): void {
       <span class="tag">Saved context only</span>
       <p class="anchor">${checkpoint.anchor.replace(/</g, '&lt;')}</p>
       <div class="ctx">… ${checkpoint.prefix.replace(/</g, '&lt;')} [${checkpoint.anchor.replace(/</g, '&lt;')}] ${checkpoint.suffix.replace(/</g, '&lt;')} …</div>
-      <div class="reason">${result.reason === 'context-mismatch' ? 'The surrounding text did not match the checkpoint.' : result.reason === 'not-in-viewport' ? 'The passage never landed inside the viewport.' : result.reason === 'no-match' ? 'The saved passage was not found on this page.' : 'The page could not be verified.'}</div>
+      <div class="reason">${result.reason === 'ambiguous' ? `Multiple matching passages: ${result.contextMatches ?? 'several'} places have the same text before and after it, so none was picked.` : result.reason === 'context-mismatch' ? 'The surrounding text did not match the checkpoint.' : result.reason === 'not-in-viewport' ? 'The passage never landed inside the viewport.' : result.reason === 'no-match' ? 'The saved passage was not found on this page.' : 'The page could not be verified.'}</div>
       ${frame}
       <small>Nothing was verified, so Deep Work Field is not claiming a resume.</small>
     </div>`;
@@ -84,74 +85,80 @@ async function verifyPending(): Promise<void> {
     retryMs: 300,
     scrollAfter: 2,
   });
+  const { range, ...plain } = result;
   try {
-    await chrome.runtime.sendMessage({ type: 'DWF_VERIFY_RESULT', checkpointId: checkpoint.id, result });
+    await chrome.runtime.sendMessage({ type: 'DWF_VERIFY_RESULT', checkpointId: checkpoint.id, restoreId: pending.restoreId, result: plain });
   } catch {
     /* the worker may be asleep; the overlay still reflects the local result */
   }
   if (result.ok) {
     showSuccess(checkpoint, result);
-    attachEditTracking(checkpoint);
+    attachEditTracking(checkpoint, range);
   } else {
     showSavedContext(checkpoint, result);
   }
 }
 
-function attachEditTracking(checkpoint: Checkpoint): void {
-  if (editLogged) return;
-  const region = checkpoint.selectorHint
-    ? document.querySelector(checkpoint.selectorHint) ?? findAnswerRegion(document, pickAnchorElement(document) ?? document.body)
-    : findAnswerRegion(document, pickAnchorElement(document) ?? document.body);
-  const field = region?.querySelector('textarea,input,[contenteditable="true"]') as HTMLElement | null;
+/**
+ * Tracks the first qualifying edit in the answer field that belongs to the
+ * verified passage (same problem/section container as the verified range).
+ * No confident link → no metric. Measured from the field's starting value.
+ */
+function attachEditTracking(checkpoint: Checkpoint, verified?: Range): void {
+  detachEdit?.();
+  detachEdit = null;
+  const origin = verified?.startContainer.parentElement ?? null;
+  const host =
+    (origin?.closest('[data-answer-region],[data-problem-id],section,form,fieldset') as Element | null) ??
+    (checkpoint.selectorHint ? document.querySelector(checkpoint.selectorHint) : null);
+  const field = host?.querySelector('textarea,input,[contenteditable="true"]') as HTMLElement | null;
   if (!field) return;
+  const read = () => ('value' in field ? String((field as HTMLInputElement).value ?? '') : (field.textContent ?? ''));
+  const baseline = read();
   const handler = () => {
-    if (editLogged || !activeCheckpoint) return;
-    const value = 'value' in field ? String((field as HTMLInputElement).value ?? '') : (field.textContent ?? '');
-    const newline = value.includes('\n');
-    if (value.length < 10 && !newline) return;
+    if (editLogged || activeCheckpoint?.id !== checkpoint.id) return;
+    const value = read();
+    const added = value.length - baseline.length;
+    const newline = (value.match(/\n/g)?.length ?? 0) > (baseline.match(/\n/g)?.length ?? 0);
+    if (added < 10 && !newline) return;
     editLogged = true;
     try {
-      chrome.runtime.sendMessage({
-        type: 'DWF_ANSWER_EDIT',
-        problemId: activeCheckpoint.problemId,
-        chars: value.length,
-      });
+      chrome.runtime.sendMessage({ type: 'DWF_ANSWER_EDIT', problemId: checkpoint.problemId, checkpointId: checkpoint.id, chars: added });
     } catch {
       /* worker asleep */
     }
   };
   field.addEventListener('input', handler);
+  detachEdit = () => field.removeEventListener('input', handler);
 }
 
 function capture(goal: string, sendResponse: (reply: any) => void): void {
   const selection = window.getSelection();
-  const selectedText = selection && !selection.isCollapsed ? selection.toString() : '';
-  const element = selectedText
-    ? (selection!.getRangeAt(0).startContainer.parentElement ?? pickAnchorElement(document))
-    : pickAnchorElement(document);
-  if (!element) {
-    sendResponse({ ok: false, error: 'No heading or paragraph is visible to anchor.' });
-    return;
-  }
-  const region = element.closest('section,form,fieldset,[data-answer-region]') ?? element.parentElement;
-  const answerRegion = region?.querySelector('textarea,input,[contenteditable="true"]') as HTMLElement | null;
-  const checkpoint = captureCheckpointFromElement(document, element, {
-    goal,
-    anchorText: selectedText || undefined,
-    savedFrame: undefined,
-    answerRegion: answerRegion
-      ? 'value' in answerRegion
-        ? String((answerRegion as HTMLInputElement).value ?? '').slice(0, 300)
-        : (answerRegion.textContent ?? '').slice(0, 300)
-      : undefined,
-  });
-  if (!checkpoint) {
-    sendResponse({ ok: false, error: 'The visible passage could not be indexed (it may be canvas-rendered).' });
-    return;
+  const range = selection && !selection.isCollapsed && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+  let checkpoint: Checkpoint | null = null;
+  if (range) {
+    // Save exactly what was selected. If it cannot be mapped, say so instead
+    // of silently saving some other occurrence of the same words.
+    checkpoint = captureCheckpointFromRange(document, range, { goal });
+    if (!checkpoint) {
+      sendResponse({ ok: false, error: 'Your selection could not be mapped to the page text, so nothing was saved. Try selecting plain text in one paragraph.' });
+      return;
+    }
+  } else {
+    const element = pickAnchorElement(document);
+    if (!element) {
+      sendResponse({ ok: false, error: 'No heading or paragraph is visible to anchor.' });
+      return;
+    }
+    checkpoint = captureCheckpointFromElement(document, element, { goal });
+    if (!checkpoint) {
+      sendResponse({ ok: false, error: 'The visible passage could not be indexed (it may be canvas-rendered).' });
+      return;
+    }
   }
   activeCheckpoint = checkpoint;
   editLogged = false;
-  attachEditTracking(checkpoint);
+  attachEditTracking(checkpoint, range ?? undefined);
   sendResponse({ ok: true, checkpoint });
 }
 

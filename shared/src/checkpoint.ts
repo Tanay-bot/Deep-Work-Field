@@ -1,7 +1,7 @@
 import type { Checkpoint } from './types';
 import { CHECKPOINT_SCHEMA_VERSION } from './types';
-import { normalizePassage } from './fragments';
-import { buildTextIndex } from './verify';
+import { foldCase, normalizePassage } from './fragments';
+import { buildTextIndex, type TextIndex } from './verify';
 
 export function newId(prefix = 'id'): string {
   const c = globalThis.crypto as Crypto | undefined;
@@ -26,58 +26,34 @@ export interface CaptureOptions {
   answerRegion?: string;
 }
 
-/**
- * Captures the passage represented by a DOM element. The prefix/suffix are the
- * 30 normalized characters on either side of the passage in document order.
- */
-export function captureCheckpointFromElement(
+function wordContext(index: TextIndex, start: number, end: number): { prefix: string; suffix: string } {
+  // Word-aligned context reads better in the saved-context UI and in the
+  // fragment URL than a raw slice that starts mid-word.
+  const beforeWindowStart = Math.max(0, start - 52);
+  let prefix = index.text.slice(beforeWindowStart, start).trim();
+  const firstSpace = prefix.indexOf(' ');
+  if (beforeWindowStart > 0 && firstSpace !== -1) prefix = prefix.slice(firstSpace + 1);
+  const afterWindowEnd = Math.min(index.text.length, end + 52);
+  let suffix = index.text.slice(end, afterWindowEnd).trim();
+  const lastSpace = suffix.lastIndexOf(' ');
+  if (afterWindowEnd < index.text.length && lastSpace !== -1) suffix = suffix.slice(0, lastSpace);
+  return { prefix, suffix };
+}
+
+function buildCheckpoint(
   doc: Document,
-  element: Element,
-  options: CaptureOptions = {},
+  index: TextIndex,
+  start: number,
+  end: number,
+  anchor: string,
+  host: Element | null,
+  options: CaptureOptions,
 ): Checkpoint | null {
   const view = doc.defaultView;
   if (!view) return null;
-  const anchorElement = element.matches('h1,h2,h3,h4,h5,h6,p,li,td,label')
-    ? element
-    : (element.querySelector('h1,h2,h3,h4,h5,h6,[data-anchor-text]') ?? element);
-  const anchorText = normalizePassage(options.anchorText ?? anchorElement.textContent ?? '');
-  if (!anchorText) return null;
-  const anchor = anchorText.length > 140 ? anchorText.slice(0, 140).replace(/\s+\S*$/, '') : anchorText;
-  const normalizedAnchor = anchor.toLowerCase();
-
-  const index = buildTextIndex(doc);
-  let start = -1;
-  let from = 0;
-  while (true) {
-    const found = index.text.indexOf(normalizedAnchor, from);
-    if (found === -1) break;
-    const entry = index.map[found];
-    if (entry && element.contains(entry.node)) {
-      start = found;
-      break;
-    }
-    from = found + 1;
-  }
-  if (start === -1) start = index.text.indexOf(normalizedAnchor);
-  if (start === -1) return null;
-  const end = start + normalizedAnchor.length;
-
-  // Word-aligned context reads better in the saved-context UI and in the
-  // fragment URL than a raw 34-character slice that starts mid-word.
-  const beforeWindowStart = Math.max(0, start - 52);
-  let contextBefore = index.text.slice(beforeWindowStart, start).trim();
-  const firstSpace = contextBefore.indexOf(' ');
-  if (beforeWindowStart > 0 && firstSpace !== -1) contextBefore = contextBefore.slice(firstSpace + 1);
-  const afterWindowEnd = Math.min(index.text.length, end + 52);
-  let contextAfter = index.text.slice(end, afterWindowEnd).trim();
-  const lastSpace = contextAfter.lastIndexOf(' ');
-  if (afterWindowEnd < index.text.length && lastSpace !== -1) contextAfter = contextAfter.slice(0, lastSpace);
-  const problemHost = element.closest('[data-problem-id]') as HTMLElement | null;
-  const problemId =
-    options.problemId ??
-    problemHost?.dataset.problemId ??
-    slugify(anchor).split('-').slice(0, 3).join('-');
-
+  const { prefix, suffix } = wordContext(index, start, end);
+  const problemHost = host?.closest('[data-problem-id]') as HTMLElement | null;
+  const problemId = options.problemId ?? problemHost?.dataset.problemId ?? slugify(anchor).split('-').slice(0, 3).join('-');
   return {
     schemaVersion: CHECKPOINT_SCHEMA_VERSION,
     id: newId('cp'),
@@ -87,13 +63,96 @@ export function captureCheckpointFromElement(
     docId: `${view.location.origin}${view.location.pathname}`,
     problemId,
     anchor,
-    prefix: contextBefore,
-    suffix: contextAfter,
+    prefix,
+    suffix,
     title: doc.title || view.location.hostname,
     selectorHint: problemHost ? `[data-problem-id="${problemHost.dataset.problemId}"]` : undefined,
     savedFrame: options.savedFrame,
     answerRegion: options.answerRegion,
   };
+}
+
+/**
+ * Captures exactly the passage the user selected. The range endpoints are
+ * mapped into the text index, so selecting the *second* "4b" saves the second
+ * one. Returns null (never a different passage) if the range cannot be mapped.
+ */
+export function captureCheckpointFromRange(doc: Document, range: Range, options: CaptureOptions = {}): Checkpoint | null {
+  const index = buildTextIndex(doc);
+  let start = -1;
+  let end = -1;
+  for (let i = 0; i < index.map.length; i++) {
+    const entry = index.map[i];
+    let inside = false;
+    try {
+      inside = range.comparePoint(entry.node, entry.offset) === 0 && !(entry.node === range.endContainer && entry.offset >= range.endOffset);
+    } catch {
+      inside = false;
+    }
+    if (inside) {
+      if (start === -1) start = i;
+      end = i + 1;
+    } else if (start !== -1) {
+      break;
+    }
+  }
+  if (start === -1) return null;
+  while (start < end && index.text[start] === ' ') start++;
+  while (end > start && index.text[end - 1] === ' ') end--;
+  if (end <= start) return null;
+  if (end - start > 140) {
+    const cut = index.text.lastIndexOf(' ', start + 140);
+    end = cut > start ? cut : start + 140;
+  }
+  // The saved anchor keeps the page's casing; it must fold to the exact slice.
+  const original = normalizePassage(rangeText(index, start, end));
+  if (foldCase(original) !== index.text.slice(start, end)) return null;
+  const host = range.startContainer.nodeType === 1 ? (range.startContainer as Element) : range.startContainer.parentElement;
+  return buildCheckpoint(doc, index, start, end, original, host, options);
+}
+
+function rangeText(index: TextIndex, start: number, end: number): string {
+  let out = '';
+  for (let i = start; i < end; i++) {
+    const entry = index.map[i];
+    const ch = entry.node.data[entry.offset] ?? ' ';
+    out += /\s/.test(ch) || index.text[i] === ' ' ? ' ' : ch;
+  }
+  return out;
+}
+
+/**
+ * Captures the passage represented by a DOM element. The occurrence must lie
+ * inside that element; there is no silent fallback to another occurrence.
+ */
+export function captureCheckpointFromElement(
+  doc: Document,
+  element: Element,
+  options: CaptureOptions = {},
+): Checkpoint | null {
+  const anchorElement = element.matches('h1,h2,h3,h4,h5,h6,p,li,td,label')
+    ? element
+    : (element.querySelector('h1,h2,h3,h4,h5,h6,[data-anchor-text]') ?? element);
+  const anchorText = normalizePassage(options.anchorText ?? anchorElement.textContent ?? '');
+  if (!anchorText) return null;
+  const anchor = anchorText.length > 140 ? anchorText.slice(0, 140).replace(/\s+\S*$/, '') : anchorText;
+  const folded = foldCase(anchor);
+
+  const index = buildTextIndex(doc);
+  let start = -1;
+  let from = 0;
+  while (true) {
+    const found = index.text.indexOf(folded, from);
+    if (found === -1) break;
+    const entry = index.map[found];
+    if (entry && anchorElement.contains(entry.node)) {
+      start = found;
+      break;
+    }
+    from = found + 1;
+  }
+  if (start === -1) return null;
+  return buildCheckpoint(doc, index, start, start + folded.length, anchor, anchorElement, options);
 }
 
 /**

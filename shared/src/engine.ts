@@ -40,6 +40,8 @@ export class FocusEngine {
   private driftSince: number | null = null;
   private lastNudgeAt = -Infinity;
   private loggedThisEpisode = false;
+  private nudgedThisEpisode = false;
+  private lastSampleAt: number | null = null;
   private runStartedAt = -Infinity;
   private correction: CorrectionVote | null = null;
   private options: EngineOptions;
@@ -52,14 +54,33 @@ export class FocusEngine {
     this.options = { ...this.options, ...options };
   }
 
+  /**
+   * A replay, mode switch or goal change starts a fresh run: smoothing
+   * history, the drift hold, the episode flags and the sample clock are all
+   * cleared. Only the nudge cooldown survives, so a reset cannot be used to
+   * nag the student twice in quick succession.
+   */
   resetRun(t: number): void {
     this.runStartedAt = t;
     this.driftSince = null;
     this.loggedThisEpisode = false;
+    this.nudgedThisEpisode = false;
+    this.history = [];
+    this.lastSampleAt = null;
   }
 
   update(input: SignalInput): EngineDecision {
     const { thresholds, mode } = this.options;
+    // Evidence expires: if samples stop arriving, the hold must not keep
+    // counting across the gap. Gaps longer than this restart the hold.
+    const staleMs = Math.max(1500, thresholds.sessionTickMs * 3);
+    const gap = this.lastSampleAt === null ? 0 : input.t - this.lastSampleAt;
+    const stale = this.lastSampleAt !== null && gap > staleMs;
+    this.lastSampleAt = input.t;
+    if (stale) {
+      this.history = [];
+      this.driftSince = null;
+    }
     this.history.push({ t: input.t, sim: input.onTaskSimilarity });
     const cutoff = input.t - thresholds.smoothingWindowMs;
     this.history = this.history.filter((s) => s.t >= cutoff);
@@ -130,7 +151,11 @@ export class FocusEngine {
     }
 
     // Correction memory can override a provisional call, but only when there
-    // are enough qualifying neighbours and the vote is decisive.
+    // are enough qualifying neighbours and the vote is decisive. It may always
+    // *suppress* a drift (on-task override). It may only *create* a drift from
+    // an UNCERTAIN call that still had a present face — never from missing or
+    // conflicting evidence — and never from a confident on-task call.
+    const provisional: FocusState = state;
     if (mode !== 'resume-only' && this.options.corrections.length > 0) {
       correction = correctionVote(
         this.options.corrections,
@@ -144,8 +169,13 @@ export class FocusEngine {
         state = input.face?.present && input.face.headDown && mode === 'full' ? 'WRITING' : 'FOCUSED';
         reasons.push(`Correction memory override: ${correction.onTask}/${correction.neighbors} similar moments were marked on-task.`);
       } else if (correction.decision === 'drift') {
-        state = 'DRIFTING';
-        reasons.push(`Correction memory override: ${correction.drift}/${correction.neighbors} similar moments were marked drift.`);
+        const allowed = provisional === 'DRIFTING' || (provisional === 'UNCERTAIN' && !!input.face?.present && mode === 'full');
+        if (allowed) {
+          state = 'DRIFTING';
+          reasons.push(`Correction memory override: ${correction.drift}/${correction.neighbors} similar moments were marked drift.`);
+        } else {
+          reasons.push(`Correction memory leans drift (${correction.drift}/${correction.neighbors}) but the current evidence (${provisional}) is not enough to nudge; no override.`);
+        }
       } else if (correction.decision === 'split') {
         state = 'UNCERTAIN';
         reasons.push(`Correction memory is split ${correction.onTask}–${correction.drift}; treating the call as UNCERTAIN.`);
@@ -154,6 +184,9 @@ export class FocusEngine {
       }
     }
 
+    if (state !== provisional) reasons.push(`Provisional call before corrections: ${provisional}.`);
+    if (stale) reasons.push(`Evidence gap of ${Math.round(gap)} ms; smoothing and drift hold restarted.`);
+
     // Drift timing: a distraction is only logged (and a nudge only allowed)
     // once DRIFTING has held for the full hold window.
     if (state === 'DRIFTING') {
@@ -161,6 +194,7 @@ export class FocusEngine {
     } else {
       this.driftSince = null;
       this.loggedThisEpisode = false;
+      this.nudgedThisEpisode = false;
     }
     const heldMs = this.driftSince === null ? 0 : input.t - this.driftSince;
     const held = state === 'DRIFTING' && heldMs >= thresholds.driftHoldMs;
@@ -173,8 +207,12 @@ export class FocusEngine {
       held &&
       mode !== 'resume-only' &&
       state === 'DRIFTING' &&
+      !this.nudgedThisEpisode &&
       input.t - this.lastNudgeAt >= thresholds.nudgeCooldownMs;
-    if (nudge) this.lastNudgeAt = input.t;
+    if (nudge) {
+      this.lastNudgeAt = input.t;
+      this.nudgedThisEpisode = true;
+    }
     if (state === 'DRIFTING' && !held) {
       reasons.push(`Drift held ${Math.max(0, Math.round(heldMs))} ms of ${thresholds.driftHoldMs} ms; no nudge yet.`);
     }

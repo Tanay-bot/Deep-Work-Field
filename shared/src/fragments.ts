@@ -1,11 +1,22 @@
 import type { Checkpoint } from './types';
 
 /**
- * Escape a fragment term: dashes and commas inside the text are doubled, then
- * each part is URL-encoded. The separators added afterwards stay single.
+ * Escape a fragment term per the Text Fragments spec: percent-encode the term,
+ * and also encode '-' (which encodeURIComponent leaves alone) so it cannot be
+ * read as a prefix/suffix separator. ',' and '&' are already encoded.
  */
 export function encodeFragmentTerm(text: string): string {
-  return encodeURIComponent(text.replace(/-/g, '--').replace(/,/g, ',,'));
+  return encodeURIComponent(text).replace(/-/g, '%2D');
+}
+
+/** Case folding that never changes length, so offsets stay 1:1 with the DOM. */
+export function foldCase(text: string): string {
+  let out = '';
+  for (const ch of text) {
+    const lower = ch.toLowerCase();
+    out += lower.length === ch.length ? lower : ch;
+  }
+  return out;
 }
 
 export function normalizePassage(text: string): string {
@@ -22,7 +33,10 @@ export function buildTextFragmentUrl(baseUrl: string, checkpoint: Pick<Checkpoin
   if (prefix) parts.push(`${encodeFragmentTerm(prefix)}-`);
   parts.push(encodeFragmentTerm(anchor));
   if (suffix) parts.push(`-${encodeFragmentTerm(suffix)}`);
-  return `${baseUrl.split('#')[0]}#:~:text=${parts.join(',')}`;
+  // Keep an app's own hash (hash routers) and append the directive after it.
+  const [base, hash = ''] = baseUrl.split('#');
+  const ownHash = hash.split(':~:')[0];
+  return `${base}#${ownHash}:~:text=${parts.join(',')}`;
 }
 
 /** True when a URL already carries a scroll-to-text fragment. */

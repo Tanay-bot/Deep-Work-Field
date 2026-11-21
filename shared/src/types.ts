@@ -117,8 +117,14 @@ export interface StudyEvent {
 
 export interface VerifyResult {
   ok: boolean;
-  reason: 'ok' | 'no-match' | 'context-mismatch' | 'not-in-viewport' | 'unreadable';
+  reason: 'ok' | 'no-match' | 'context-mismatch' | 'not-in-viewport' | 'unreadable' | 'ambiguous';
   candidates: number;
+  /** Occurrences whose anchor, prefix and suffix all matched. Exactly one is required for ok. */
+  contextMatches?: number;
+  /** How the passage reached the viewport: Chrome's fragment scroll / page itself, or our one DOM scroll. */
+  landing?: 'native' | 'dom-scroll';
+  /** Local only (not serializable): the verified range, for scoping edit tracking. */
+  range?: Range;
   rect?: { top: number; bottom: number; left: number; right: number };
   matchedText?: string;
   attempts: number;

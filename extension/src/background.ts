@@ -10,6 +10,41 @@ const KEYS = {
 
 type CheckpointList = Checkpoint[];
 
+/** One restore = one operation, keyed by tab, identified by restoreId. */
+interface PendingRestore {
+  restoreId: string;
+  checkpoint: Checkpoint;
+  tabId: number;
+  at: number;
+}
+type PendingMap = Record<string, PendingRestore>;
+const RESTORE_TIMEOUT_MS = 60_000;
+
+/** Serializes read-modify-write cycles on chrome.storage so saves and restores cannot clobber each other. */
+let storageLock: Promise<unknown> = Promise.resolve();
+function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = storageLock.then(fn, fn);
+  storageLock = run.catch(() => undefined);
+  return run;
+}
+
+function restoreId(): string {
+  return `rs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function readPending(): Promise<PendingMap> {
+  const stored = await chrome.storage.local.get(KEYS.pending);
+  const raw = stored[KEYS.pending];
+  // Older builds stored a single record; drop it rather than misattribute it.
+  if (!raw || typeof raw !== 'object' || 'checkpoint' in raw) return {};
+  const now = Date.now();
+  const live: PendingMap = {};
+  for (const [tab, entry] of Object.entries(raw as PendingMap)) {
+    if (entry && now - entry.at < RESTORE_TIMEOUT_MS) live[tab] = entry;
+  }
+  return live;
+}
+
 async function readCheckpoints(): Promise<CheckpointList> {
   const stored = await chrome.storage.local.get(KEYS.checkpoints);
   return Array.isArray(stored[KEYS.checkpoints]) ? stored[KEYS.checkpoints] : [];
@@ -19,11 +54,21 @@ async function writeCheckpoints(list: CheckpointList): Promise<void> {
   await chrome.storage.local.set({ [KEYS.checkpoints]: list.slice(0, 25) });
 }
 
-async function getPending(tabId?: number): Promise<{ checkpoint: Checkpoint; tabId: number; at: number } | null> {
-  const stored = await chrome.storage.local.get(KEYS.pending);
-  const pending = stored[KEYS.pending];
-  if (!pending || (tabId !== undefined && pending.tabId !== tabId)) return null;
-  return pending;
+async function getPending(tabId?: number): Promise<PendingRestore | null> {
+  if (tabId === undefined) return null;
+  const map = await readPending();
+  return map[String(tabId)] ?? null;
+}
+
+async function settlePending(tabId: number, id: string): Promise<boolean> {
+  return withLock(async () => {
+    const map = await readPending();
+    const entry = map[String(tabId)];
+    if (!entry || entry.restoreId !== id) return false;
+    delete map[String(tabId)];
+    await chrome.storage.local.set({ [KEYS.pending]: map });
+    return true;
+  });
 }
 
 async function setBadge(text: string, color: string): Promise<void> {
@@ -52,18 +97,26 @@ async function captureOnTab(tab: any, goal: string): Promise<{ ok: boolean; chec
     return { ok: false, error: reply?.error ?? 'No citable passage was found on this page.' };
   }
   const checkpoint: Checkpoint = reply.checkpoint;
+  // The frame must show the tab that was captured. If the user switched tabs
+  // in the meantime, skip it rather than save a picture of something else.
   try {
-    const frame = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 55 });
-    checkpoint.savedFrame = frame;
+    const now = await activeTab();
+    if (now?.id === tab.id && now?.windowId === tab.windowId) {
+      checkpoint.savedFrame = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 55 });
+    }
   } catch {
     /* captures can be blocked by policy; the checkpoint is still useful */
   }
-  const list = await readCheckpoints();
-  list.unshift(checkpoint);
-  await writeCheckpoints(list);
+  await withLock(async () => {
+    const list = await readCheckpoints();
+    list.unshift(checkpoint);
+    await writeCheckpoints(list);
+  });
   await chrome.storage.local.set({ [KEYS.session]: { goal, checkpointId: checkpoint.id, startedAt: Date.now() } });
   await setBadge('●', '#45d6ab');
-  return { ok: true, checkpoint };
+  // The web page only needs to know what was saved, not the passage text,
+  // answer draft or screenshot, which stay inside the extension.
+  return { ok: true, checkpoint: { ...checkpoint, savedFrame: undefined, answerRegion: undefined } };
 }
 
 async function restoreCheckpoint(id: string): Promise<{ ok: boolean; error?: string; url?: string }> {
@@ -71,18 +124,31 @@ async function restoreCheckpoint(id: string): Promise<{ ok: boolean; error?: str
   const checkpoint = list.find((item) => item.id === id);
   if (!checkpoint) return { ok: false, error: 'Checkpoint not found.' };
   const url = buildTextFragmentUrl(checkpoint.url, checkpoint);
+  // Open a blank tab first and register the operation BEFORE navigating, so
+  // even a very fast page finds its own pending restore when it asks.
   let tab: any;
   try {
-    tab = await chrome.tabs.create({ url, active: true });
+    tab = await chrome.tabs.create({ url: 'about:blank', active: true });
   } catch (error) {
     return { ok: false, error: 'Could not open a tab for the restore.' };
   }
   if (!tab?.id) return { ok: false, error: 'Could not open a tab for the restore.' };
-  await chrome.storage.local.set({
-    [KEYS.pending]: { checkpoint, tabId: tab.id, at: Date.now() },
-    [KEYS.lastResult]: { checkpointId: id, status: 'pending', at: Date.now() },
+  const op: PendingRestore = { restoreId: restoreId(), checkpoint, tabId: tab.id, at: Date.now() };
+  await withLock(async () => {
+    const map = await readPending();
+    map[String(tab.id)] = op;
+    await chrome.storage.local.set({
+      [KEYS.pending]: map,
+      [KEYS.lastResult]: { checkpointId: id, restoreId: op.restoreId, status: 'pending', at: Date.now() },
+    });
   });
-  return { ok: true, url };
+  try {
+    await chrome.tabs.update(tab.id, { url });
+  } catch {
+    await settlePending(tab.id, op.restoreId);
+    return { ok: false, error: 'Could not navigate the restore tab.' };
+  }
+  return { ok: true, url, restoreId: op.restoreId } as { ok: boolean; url: string; restoreId: string };
 }
 
 async function externalMessage(message: any, sender: any): Promise<any> {
@@ -122,18 +188,30 @@ chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (
   }
   if (message?.type === 'DWF_VERIFY_RESULT') {
     const result: VerifyResult = message.result;
-    const checkpointId = message.checkpointId;
-    void chrome.storage.local.set({
-      [KEYS.lastResult]: { checkpointId, status: result.ok ? 'verified' : 'saved-context', reason: result.reason, attempts: result.attempts, at: Date.now() },
-    });
-    if (result.ok) {
-      void setBadge('✓', '#45d6ab');
-      void chrome.storage.local.remove(KEYS.pending);
-    } else {
-      void setBadge('!', '#f0b429');
-    }
-    sendResponse({ ok: true });
-    return false;
+    const tabId = sender.tab?.id;
+    const id = String(message.restoreId ?? '');
+    // Only the operation that is still pending for THIS tab may settle it;
+    // a stale reply from an older restore is ignored, not recorded.
+    void (async () => {
+      if (tabId === undefined || !(await settlePending(tabId, id))) {
+        sendResponse({ ok: false, stale: true });
+        return;
+      }
+      await chrome.storage.local.set({
+        [KEYS.lastResult]: {
+          checkpointId: message.checkpointId,
+          restoreId: id,
+          status: result.ok ? 'verified' : result.reason === 'ambiguous' ? 'ambiguous' : 'saved-context',
+          reason: result.reason,
+          landing: result.landing,
+          attempts: result.attempts,
+          at: Date.now(),
+        },
+      });
+      await setBadge(result.ok ? '✓' : '!', result.ok ? '#45d6ab' : '#f0b429');
+      sendResponse({ ok: true });
+    })();
+    return true;
   }
   if (message?.type === 'DWF_ANSWER_EDIT') {
     void chrome.storage.local.get(KEYS.session).then((stored: any) => {
@@ -169,6 +247,19 @@ chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (
     return true;
   }
   return false;
+});
+
+chrome.tabs.onRemoved.addListener((tabId: number) => {
+  void withLock(async () => {
+    const map = await readPending();
+    const entry = map[String(tabId)];
+    if (!entry) return;
+    delete map[String(tabId)];
+    await chrome.storage.local.set({
+      [KEYS.pending]: map,
+      [KEYS.lastResult]: { checkpointId: entry.checkpoint.id, restoreId: entry.restoreId, status: 'cancelled', reason: 'tab-closed', at: Date.now() },
+    });
+  });
 });
 
 chrome.runtime.onInstalled.addListener(() => {
