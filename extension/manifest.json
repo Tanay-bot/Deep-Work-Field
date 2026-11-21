@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Deep Work Field",
+  "version": "1.0.0",
+  "description": "On-device checkpoints and verified restore for study pages. No accounts, no cloud AI.",
+  "permissions": ["tabs", "activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Deep Work Field",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:3000/*",
+      "http://127.0.0.1:3000/*",
+      "https://*.style.dev/*",
+      "https://deep-work-field-ikbno6-preview.freebuff.site/*",
+      "https://deep-work-field-ikbno6.freebuff.site/*",
+      "https://*.freebuff.com/*"
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["pdf/viewer.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

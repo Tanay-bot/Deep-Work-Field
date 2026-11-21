@@ -1,0 +1,8 @@
+session_id,timestamp_iso,elapsed_ms,type,state,mode,detail
+sess_demo_b,2026-11-21T19:00:00.000Z,0,session-start,,screen-only,"mode=screen-only; goal=AP Biology enzymes"
+sess_demo_b,2026-11-21T19:00:00.000Z,0,mode,,screen-only,screen-only
+sess_demo_b,2026-11-21T19:00:00.000Z,0,state,FOCUSED,screen-only,FOCUSED
+sess_demo_b,2026-11-21T19:00:22.000Z,22000,state,UNCERTAIN,screen-only,UNCERTAIN
+sess_demo_b,2026-11-21T19:00:42.000Z,42000,state,FOCUSED,screen-only,FOCUSED
+sess_demo_b,2026-11-21T19:01:00.000Z,60000,nudge,DRIFTING,screen-only,"You were on 2a, enzyme kinetics."
+sess_demo_b,2026-11-21T19:01:20.000Z,80000,session-end,,screen-only,recording stopped

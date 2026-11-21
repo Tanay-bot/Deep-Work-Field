@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Deep Work Field</title>
+<link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+<header>
+  <div class="brand"><span>✦</span> Deep Work Field</div>
+  <button id="copy-id" title="Copy this extension ID for the web app settings">Copy ID</button>
+</header>
+<main>
+  <label class="field">Session goal
+    <input id="goal" type="text" value="AP Chem unit 4" autocomplete="off" />
+  </label>
+  <button id="save" class="primary" type="button">Save checkpoint on this tab</button>
+  <p id="status" class="status" data-kind="muted">Select the worksheet passage you want to return to, then save.</p>
+  <div class="divider"></div>
+  <section>
+    <h2>Checkpoints</h2>
+    <ul id="list"><li class="empty">Loading…</li></ul>
+  </section>
+  <div class="divider"></div>
+  <p id="result" class="status" data-kind="muted">No restore checked yet.</p>
+  <p class="fine">Restores use a scroll-to-text fragment with prefix and suffix context. The tab is verified by the content script; if it fails you get “Saved context only”, never a false success.</p>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>

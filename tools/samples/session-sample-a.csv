@@ -1,0 +1,10 @@
+session_id,timestamp_iso,elapsed_ms,type,state,mode,detail
+sess_demo_a,2026-11-21T18:00:00.000Z,0,session-start,,full,"mode=full; goal=AP Chem unit 4"
+sess_demo_a,2026-11-21T18:00:00.000Z,0,mode,,full,full
+sess_demo_a,2026-11-21T18:00:00.000Z,0,state,FOCUSED,full,FOCUSED
+sess_demo_a,2026-11-21T18:00:11.000Z,11000,state,DRIFTING,full,DRIFTING
+sess_demo_a,2026-11-21T18:00:11.000Z,11000,drift,,full,sim=0.11
+sess_demo_a,2026-11-21T18:00:14.000Z,14000,nudge,DRIFTING,full,"You were on 4b, limiting reagent."
+sess_demo_a,2026-11-21T18:00:17.000Z,17000,first-edit,WRITING,full,chars=42; newline=false
+sess_demo_a,2026-11-21T18:00:19.000Z,19000,correction,,full,decision=on-task; votes=5-0
+sess_demo_a,2026-11-21T18:01:00.000Z,60000,session-end,,full,recording stopped
