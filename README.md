@@ -125,9 +125,13 @@ ablation-style record of decisions logged while corrections were active, not a c
 
 ## What is stubbed / not shipped (honest scope)
 
-- **Face cues and ML models**: the `FaceCue` signal, fusion rules and correction path are real, but the
-  MediaPipe FaceLandmarker adapter is not bundled. Full-fusion demo signals are explicitly labelled as
-  scripted.
+- **Face cues (shipped)**: MediaPipe Face Landmarker runs on-device from `web/public/mediapipe/`
+  (wasm + model served same-origin, so it works offline once cached). **Turn on camera** in the
+  session's Face cues card, then calibrate: look at the screen, then at your notes; "head down" is
+  defined relative to those two poses, so the matrix sign convention and camera angle don't matter.
+  Detection runs on each live sample (event-driven, so background-tab timer throttling cannot stall
+  it). Verified in CI only with Chromium's fake camera (model loads, reports "no face"); not yet
+  measured on real students. The zero-install scripted demo still uses labelled scripted face cues.
 - **Transformers.js / Kokoro**: a deterministic local hashed embedder drives similarity and correction
   memory; nudges use device `speechSynthesis`. The model interfaces and progress/fallback UI exist, but
   the models are not bundled. The voice panel says so.

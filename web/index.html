@@ -328,6 +328,19 @@
             <em>in-page fallback</em>
           </div>
         </div>
+        <div class="card face-card">
+          <div class="card-head">
+            <p class="section-kicker">Face cues</p>
+            <span class="pill tiny" id="face-pill">off</span>
+          </div>
+          <p id="face-status" class="muted small">Optional, for Full fusion. MediaPipe runs on this device; no frame is stored or sent anywhere.</p>
+          <div id="face-preview" class="face-preview" hidden></div>
+          <div class="row wrap">
+            <button id="face-start" class="btn small" type="button">Turn on camera</button>
+            <button id="face-calibrate" class="btn small ghost" type="button" disabled>Calibrate</button>
+            <button id="face-stop" class="btn small ghost" type="button" hidden>Turn off</button>
+          </div>
+        </div>
         <div class="card corrections-card">
           <div class="card-head">
             <p class="section-kicker">Correction memory</p>

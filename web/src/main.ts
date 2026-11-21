@@ -11,6 +11,7 @@ import { FocusEngine, type EngineDecision } from '../../shared/src/engine';
 import './lib/fx';
 import { Galaxy } from './lib/galaxy';
 import { Voice } from './lib/voice';
+import { FaceSensor } from './lib/face';
 import { StudyRecorder, studyCsv, downloadBlob } from './lib/study';
 import {
   deleteItem,
@@ -116,6 +117,9 @@ const state = {
   extensionConnected: false,
   livePort: null as { postMessage: (m: unknown) => void; disconnect: () => void; onMessage: any; onDisconnect: any } | null,
   liveFace: null as FaceCue | null,
+  face: new FaceSensor(),
+  faceTimer: 0,
+  calibrating: false,
   lastStateLog: '' as FocusState | '',
 };
 
@@ -126,6 +130,12 @@ const dom = {
   modeSelect: $('mode-select') as HTMLSelectElement,
   extensionStatus: $('extension-status'),
   liveBtn: $('live-btn') as HTMLButtonElement,
+  facePill: $('face-pill'),
+  faceStatus: $('face-status'),
+  facePreview: $('face-preview'),
+  faceStart: $('face-start') as HTMLButtonElement,
+  faceCalibrate: $('face-calibrate') as HTMLButtonElement,
+  faceStop: $('face-stop') as HTMLButtonElement,
   liveStatus: $('live-status'),
   sessionGoal: $('session-goal'),
   statePill: $('state-pill'),
@@ -535,8 +545,8 @@ function startLive(): void {
   dom.liveBtn.textContent = 'Stop live';
   dom.stepDrift.disabled = true;
   dom.demoStep.textContent =
-    state.mode === 'full' && !state.liveFace
-      ? 'Live: reading your active tab. Full fusion also needs face cues, so without the camera it will abstain; switch Mode to Screen-only for live nudges.'
+    state.mode === 'full' && !state.face.running
+      ? 'Live: reading your active tab. Full fusion also needs face cues: turn on the camera in “Face cues”, or switch Mode to Screen-only.'
       : 'Live: reading your active tab through the extension. Switch to another tab to see the field react; come back to the worksheet to recover.';
   dom.liveStatus.textContent = 'Live · waiting for the first sample from your active tab…';
   renderTrace();
@@ -572,6 +582,7 @@ function liveSample(sample: ScreenSample): void {
     host = 'unknown page';
   }
   const match = matchScreen(state.goal, sample, state.checkpoint);
+  if (state.face.running) state.liveFace = state.face.sample(state.thresholds.headDownPitchDeg);
   const screenText = `${sample.title}${sample.text ? ' — ' + sample.text.slice(0, 240) : ''}`;
   const face = state.liveFace;
   state.nudgeText = spokenCheckpoint(state.checkpoint);
@@ -1212,7 +1223,96 @@ async function stopStudy(fromTrackEnd = false): Promise<void> {
   }
 }
 
+function describeFace(): void {
+  const cue = state.liveFace;
+  const cal = state.face.calibration;
+  if (!state.face.running) {
+    dom.facePill.textContent = 'off';
+    return;
+  }
+  dom.facePill.textContent = !cue ? 'starting' : !cue.present ? 'no face' : cue.eyesClosed ? 'eyes closed' : cue.headDown ? 'head down' : 'head up';
+  if (state.calibrating) return;
+  if (!cal) {
+    dom.faceStatus.textContent = 'Camera on. Calibrate once so “head down” means looking at your notes.';
+  } else if (cue?.present) {
+    dom.faceStatus.textContent = `Pitch ${cue.pitchDeg?.toFixed(0)}° toward notes (calibrated range ${Math.abs(cal.notesPitch - cal.screenPitch).toFixed(0)}°).`;
+  }
+}
+
+async function startFace(): Promise<void> {
+  dom.faceStart.disabled = true;
+  try {
+    await state.face.start((label) => (dom.faceStatus.textContent = label));
+  } catch (error) {
+    dom.faceStart.disabled = false;
+    const denied = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError');
+    dom.faceStatus.textContent = denied
+      ? 'Camera permission was not granted. Full fusion will abstain; Screen-only mode still works.'
+      : 'The face model could not start on this device. Full fusion will abstain; Screen-only mode still works.';
+    return;
+  }
+  dom.facePreview.hidden = false;
+  dom.facePreview.replaceChildren(state.face.video);
+  dom.faceStart.hidden = true;
+  dom.faceStop.hidden = false;
+  dom.faceCalibrate.disabled = false;
+  clearInterval(state.faceTimer);
+  // Visible-tab refresh for the readout; live samples also trigger detection.
+  state.faceTimer = window.setInterval(() => {
+    if (document.visibilityState === 'visible') state.liveFace = state.face.sample(state.thresholds.headDownPitchDeg);
+    describeFace();
+  }, 500);
+  state.study.log('mode', 'face cues on');
+  if (!state.face.calibration) void calibrateFace();
+}
+
+async function calibrateFace(): Promise<void> {
+  if (!state.face.running) return;
+  if (state.frozen && state.face.calibration) {
+    toast('Thresholds are frozen; unfreeze in Settings to recalibrate.', 'warn');
+    return;
+  }
+  dom.faceCalibrate.disabled = true;
+  state.calibrating = true;
+  dom.faceStatus.textContent = 'Calibrating 1/2: look at your screen…';
+  await sleep(600);
+  const screen = await state.face.capturePose();
+  dom.faceStatus.textContent = 'Calibrating 2/2: now look down at your notes…';
+  await sleep(1200);
+  const notes = await state.face.capturePose();
+  dom.faceCalibrate.disabled = false;
+  state.calibrating = false;
+  if (screen === null || notes === null) {
+    dom.faceStatus.textContent = 'No face was found during calibration. Sit in view of the camera and try again.';
+    return;
+  }
+  if (Math.abs(notes - screen) < 4) {
+    dom.faceStatus.textContent = 'Screen and notes poses looked the same. Tilt your head down further for step 2 and try again.';
+    return;
+  }
+  state.face.saveCalibration(screen, notes);
+  dom.faceStatus.textContent = `Calibrated: ${Math.abs(notes - screen).toFixed(0)}° between screen and notes.`;
+  state.study.log('mode', `face calibrated span=${Math.abs(notes - screen).toFixed(1)}`);
+}
+
+function stopFace(): void {
+  clearInterval(state.faceTimer);
+  state.face.stop();
+  state.liveFace = null;
+  dom.facePreview.hidden = true;
+  dom.facePreview.replaceChildren();
+  dom.faceStart.hidden = false;
+  dom.faceStart.disabled = false;
+  dom.faceStop.hidden = true;
+  dom.faceCalibrate.disabled = true;
+  dom.faceStatus.textContent = 'Camera off. Full fusion will abstain without face cues.';
+  describeFace();
+}
+
 function setupLive(): void {
+  dom.faceStart.addEventListener('click', () => void startFace());
+  dom.faceCalibrate.addEventListener('click', () => void calibrateFace());
+  dom.faceStop.addEventListener('click', stopFace);
   dom.liveBtn.addEventListener('click', () => {
     if (state.livePort) stopLive();
     else {
