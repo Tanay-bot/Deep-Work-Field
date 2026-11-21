@@ -35,8 +35,10 @@ locally and can override later calls only on a 4-of-5 supermajority.
   DRIFTING / UNCERTAIN, a 3-second drift hold that restarts if evidence stops arriving, one nudge per
   drift episode, and a live decision trace.
 - **Live screen mode**: with the extension, the visible text of your active tab streams to the
-  focus engine once a second (only during a session, never off the device). Goal matching scores how
-  many of your goal's terms are on screen, and treats the page you saved as on-task.
+  focus engine once a second (only during a session, never off the device). Goal matching combines
+  how many of your goal's terms are on screen, an on-device **Transformers.js** sentence model
+  (MiniLM) that catches near-topic pages like a stoichiometry lecture, and "this is the page you
+  saved".
 - **On-device text similarity** for correction memory uses a small local hashed embedder (no model
   download, no network).
 - **Face cues**: MediaPipe Face Landmarker runs in the page (no frames stored or sent). A two-pose
@@ -64,8 +66,7 @@ and records whether Chrome or the app's single fallback scroll put the passage o
   mode (real tabs) needs the extension; Full fusion live also needs the camera.
 - Face cues are real (MediaPipe) but have only been tested with a fake camera in CI and by hand —
   not measured on a study group. Head pose is a proxy for attention.
-- Transformers.js embeddings, Kokoro voice, OCR and the PDF route are **not shipped** in this
-  build; their interfaces exist.
+- Kokoro voice, OCR and the PDF route are **not shipped** in this build.
 - Text fragments do not work inside Google Docs (saved context only there).
 - The evaluation study has not been run with students yet; any numbers shown are a pilot. Main metric
   when it is run: "time to first qualifying answer edit".

@@ -12,6 +12,7 @@ import './lib/fx';
 import { Galaxy } from './lib/galaxy';
 import { Voice } from './lib/voice';
 import { FaceSensor } from './lib/face';
+import { loadSemantic, scaleSemantic, semanticSimilarity, semanticStatus } from './lib/semantic';
 import { StudyRecorder, studyCsv, downloadBlob } from './lib/study';
 import {
   deleteItem,
@@ -537,7 +538,7 @@ function startLive(): void {
   state.study.log('mode', `${state.mode}; live`);
   dom.nudge.hidden = true;
   port.onMessage.addListener((message: ScreenSample & { type: string }) => {
-    if (message?.type === 'screen') liveSample(message);
+    if (message?.type === 'screen') void liveSample(message);
   });
   port.onDisconnect.addListener(() => {
     if (state.livePort === port) stopLive(false, 'The extension disconnected (it may have been reloaded or disabled).');
@@ -550,7 +551,12 @@ function startLive(): void {
       : 'Live: reading your active tab through the extension. Switch to another tab to see the field react; come back to the worksheet to recover.';
   dom.liveStatus.textContent = 'Live · waiting for the first sample from your active tab…';
   renderTrace();
+  void loadSemantic((label) => (dom.liveStatus.textContent = `Live · ${label}`)).catch(() => {
+    dom.liveStatus.textContent = 'Live · the semantic matcher could not load here; using goal-term coverage only.';
+  });
 }
+
+let liveBusy = false;
 
 function stopLive(silent = false, reason = ''): void {
   const port = state.livePort;
@@ -568,8 +574,8 @@ function stopLive(silent = false, reason = ''): void {
   }
 }
 
-function liveSample(sample: ScreenSample): void {
-  if (!state.engine || !state.sessionId) return;
+async function liveSample(sample: ScreenSample): Promise<void> {
+  if (!state.engine || !state.sessionId || liveBusy) return;
   let host = '';
   try {
     const url = new URL(sample.url);
@@ -581,21 +587,38 @@ function liveSample(sample: ScreenSample): void {
   } catch {
     host = 'unknown page';
   }
-  const match = matchScreen(state.goal, sample, state.checkpoint);
-  if (state.face.running) state.liveFace = state.face.sample(state.thresholds.headDownPitchDeg);
-  const screenText = `${sample.title}${sample.text ? ' — ' + sample.text.slice(0, 240) : ''}`;
-  const face = state.liveFace;
-  state.nudgeText = spokenCheckpoint(state.checkpoint);
-  const decision = state.engine.update({
-    t: Date.now(),
-    screenText,
-    onTaskSimilarity: match.sim,
-    embedding: embedText(`${sample.title} ${sample.text}`),
-    face,
-    source: 'dom',
-  });
-  appendDecision(decision, { screenText, sim: match.sim, face, source: 'dom' }, `Live tab ${host}: ${match.reason}.`);
-  dom.liveStatus.textContent = `Live · ${host} · ${match.reason} · ${decision.state}`;
+  liveBusy = true;
+  try {
+    const match = matchScreen(state.goal, sample, state.checkpoint);
+    let sim = match.sim;
+    let reason = match.reason;
+    if (semanticStatus === 'ready') {
+      // Semantic evidence can only raise on-task similarity (near-topic pages).
+      const cosine = await semanticSimilarity(state.goal, `${sample.title}. ${sample.text}`.slice(0, 1200));
+      const scaled = scaleSemantic(cosine);
+      reason += `; meaning match ${cosine.toFixed(2)} (MiniLM)`;
+      if (scaled > sim) sim = Number(scaled.toFixed(3));
+    }
+    if (!state.engine || !state.sessionId || !state.livePort) return;
+    if (state.face.running) state.liveFace = state.face.sample(state.thresholds.headDownPitchDeg);
+    const screenText = `${sample.title}${sample.text ? ' — ' + sample.text.slice(0, 240) : ''}`;
+    const face = state.liveFace;
+    state.nudgeText = spokenCheckpoint(state.checkpoint);
+    const decision = state.engine.update({
+      t: Date.now(),
+      screenText,
+      onTaskSimilarity: sim,
+      embedding: embedText(`${sample.title} ${sample.text}`),
+      face,
+      source: 'dom',
+    });
+    appendDecision(decision, { screenText, sim, face, source: 'dom' }, `Live tab ${host}: ${reason}.`);
+    dom.liveStatus.textContent = `Live · ${host} · ${reason} · ${decision.state}`;
+  } catch {
+    /* a failed semantic call must not stop the stream; next sample retries */
+  } finally {
+    liveBusy = false;
+  }
 }
 
 function beginSession(): void {

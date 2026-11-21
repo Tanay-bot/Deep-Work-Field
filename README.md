@@ -132,9 +132,13 @@ ablation-style record of decisions logged while corrections were active, not a c
   Detection runs on each live sample (event-driven, so background-tab timer throttling cannot stall
   it). Verified in CI only with Chromium's fake camera (model loads, reports "no face"); not yet
   measured on real students. The zero-install scripted demo still uses labelled scripted face cues.
-- **Transformers.js / Kokoro**: a deterministic local hashed embedder drives similarity and correction
-  memory; nudges use device `speechSynthesis`. The model interfaces and progress/fallback UI exist, but
-  the models are not bundled. The voice panel says so.
+- **Semantic goal matcher (shipped)**: all-MiniLM-L6-v2 (q8) via Transformers.js, vendored in
+  `web/public/models` with the ONNX runtime in `web/public/ort`; remote model loading is disabled.
+  Loaded when live mode starts (~1.7 s), ~10 ms per sample. Measured cosine to the goal "AP Chem unit
+  4 limiting reagent": worksheet 0.67, a stoichiometry lecture 0.42 (0/5 goal terms, so the term
+  matcher alone would miss it), AP Bio homework 0.28, Minecraft / lofi / Instagram ≈ 0. It can only
+  *raise* on-task evidence; the hashed embedder still keys correction memory.
+- **Kokoro**: not bundled; nudges use device `speechSynthesis`.
 - **Tesseract OCR**: not shipped. DOM text only.
 - **PDF.js route**: `extension/pdf/` is a deliberate Phase 6 stub; there is no fake viewer.
 - **Planner / capybara constellation**: not shipped (Phase 6).
