@@ -205,8 +205,11 @@ student evaluation sessions. The evaluation script was run on the sample fixture
 - `npm run build` — typecheck then Vite build.
 - `npm run dev` — dev server on `0.0.0.0:3000`; the `/demo` worksheets are served by a small Vite
   middleware and copied into `web/dist/demo` for production.
-- The galaxy tries `WebGPURenderer` and probes the canvas for visible pixels; if the WebGPU point cloud
-  is blank it swaps to a fresh canvas with `WebGLRenderer`. Particle count adapts when frames exceed
-  20 ms.
+- The galaxy is a WebGL2 shader point cloud (three.js `ShaderMaterial`): each focus state is a
+  precomputed shape stored as a vertex attribute, and the GPU morphs between them from four eased
+  blend weights. Particle count adapts when frames exceed 20 ms.
+- UI motion (intro, reveals, magnetic buttons, cursor) lives in `web/src/lib/fx.ts` (GSAP) and is
+  presentation-only; it is disabled under `prefers-reduced-motion`. Fonts are bundled via Fontsource,
+  so the app works offline once cached.
 - Document PiP must be opened by the PiP button (user gesture); when unavailable it shows the in-page
   mini panel.

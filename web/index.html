@@ -5,18 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="Deep Work Field: on-device drift detection, verified restore to the exact problem, and local correction memory." />
 <title>Deep Work Field — find the problem you left</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='3' fill='%23f0b429'/%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%23a9c8ff' stroke-width='1.2' stroke-dasharray='2 5'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='3' fill='%23ffb547'/%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%23efe7d6' stroke-width='1.2' stroke-dasharray='2 5'/%3E%3C/svg%3E" />
+<meta name="theme-color" content="#050407" />
+<script>document.documentElement.classList.add('js')</script>
 <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
 <canvas id="galaxy" aria-hidden="true"></canvas>
+<div class="vignette" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
+<div class="cursor" aria-hidden="true"><i></i></div>
+<div class="intro" aria-hidden="true">
+  <div class="intro-inner">
+    <span class="intro-count">000</span>
+    <span class="intro-word">calibrating the field</span>
+  </div>
+</div>
 
 <header class="topbar">
   <a class="brand" href="/" aria-label="Deep Work Field home">
-    <span class="brand-mark" aria-hidden="true">✦</span>
-    <span>Deep Work Field</span>
+    <span class="brand-mark" aria-hidden="true"><i></i><i></i><b></b></span>
+    <span class="brand-name">Deep Work <em>Field</em></span>
   </a>
+  <div class="topmid" aria-hidden="true">
+    <span class="hud-dot"></span><span class="hud-state" data-hud-state>FOCUSED</span>
+    <span class="hud-sep">/</span><span data-hud-clock>00:00:00</span>
+  </div>
   <nav class="topnav" aria-label="Session controls">
     <label class="mode-picker">
       <span>Mode</span>
@@ -34,72 +48,98 @@
 <main>
   <section id="landing">
     <div class="hero">
+      <div class="hud-corners" aria-hidden="true">
+        <span class="hc tl">RA 04h·0b<br />DEC +4b°</span>
+        <span class="hc tr">ON-DEVICE<br />NO ACCOUNTS · NO CLOUD AI</span>
+      </div>
       <div class="hero-copy">
-        <p class="eyebrow"><span class="live-dot"></span> On-device · no accounts · no cloud AI</p>
-        <h1>Your study session drifted.<br /><em>One click</em> takes you back to problem&nbsp;4b.</h1>
-        <p class="lede">
+        <p class="eyebrow reveal-up"><span class="live-dot"></span> A study companion that keeps your place</p>
+        <h1 class="hero-title" aria-label="Your study session drifted. One click takes you back to problem 4b.">
+          <span class="ht-line" aria-hidden="true"><span class="ht-word">Your study session</span></span>
+          <span class="ht-line big" aria-hidden="true"><em class="ht-word glitch" data-text="drifted.">drifted.</em></span>
+          <span class="ht-line" aria-hidden="true"><span class="ht-word"><span class="sans">One click</span> takes you</span></span>
+          <span class="ht-line" aria-hidden="true"><span class="ht-word">back to problem <span class="ring-num">4b<svg viewBox="0 0 120 70" aria-hidden="true"><ellipse cx="60" cy="35" rx="56" ry="30" /></svg></span>.</span></span>
+        </h1>
+        <p class="lede reveal-up">
           Deep Work Field notices when the worksheet stops being the thing on your screen, speaks the exact
-          problem you left, and reopens it — verified against the surrounding passage, even after the page
+          problem you left, and reopens it, verified against the surrounding passage, even after the page
           reflowed or the tab was closed.
         </p>
-        <div class="hero-actions">
-          <button id="try-btn" class="btn primary" type="button">Try it now — no install</button>
-          <button id="extension-btn" class="btn ghost" type="button">Get the extension</button>
+        <div class="hero-actions reveal-up">
+          <button id="try-btn" class="btn primary mega magnetic" type="button">
+            <span class="btn-label">Try it now</span><span class="btn-sub">no install</span>
+            <span class="btn-arrow" aria-hidden="true">→</span>
+          </button>
+          <button id="extension-btn" class="btn ghost magnetic" type="button">Get the extension</button>
         </div>
-        <p class="micro">
+        <p class="micro reveal-up">
           The zero-install demo runs a labelled, scripted drift signal. This build ships the checkpoint,
           verified restore, fusion engine and study mode; face and ML adapters are stubs, and the hosted
           app never asks for your camera.
         </p>
-        <dl class="hero-stats">
-          <div><dt>Restore check</dt><dd>prefix + suffix + viewport</dd></div>
-          <div><dt>Storage</dt><dd>IndexedDB, never uploaded</dd></div>
-          <div><dt>Corrections</dt><dd>4-of-5 supermajority</dd></div>
-        </dl>
       </div>
       <div class="hero-panel" aria-hidden="true">
-        <div class="mock-window">
-          <div class="mock-bar"><span></span><span></span><span></span><em>worksheet · problem 4b</em></div>
+        <div class="mock-window tilt">
+          <div class="mock-bar"><span></span><span></span><span></span><em>worksheet-a.html · twin headings</em></div>
           <div class="mock-sheet">
-            <p class="mock-kicker">PART II — LIMITING REAGENTS</p>
-            <h3>4b. Limiting reagent</h3>
+            <p class="mock-kicker">PART II · LIMITING REAGENTS</p>
+            <h3 class="mock-hit">4b. Limiting reagent <b>MATCH</b></h3>
             <p>A 10.0 g sample of aluminum reacts with 10.0 g of chlorine gas…</p>
-            <div class="mock-line"></div><div class="mock-line short"></div>
-            <div class="mock-box"><span>theoretical yield</span></div>
+            <div class="mock-box"><span>theoretical yield</span><i class="caret"></i></div>
+            <div class="mock-twin"><p class="mock-kicker">ANSWER KEY</p><h3>4b. Limiting reagent <b>REJECTED</b></h3><small>prefix ≠ “Part II-” · suffix ≠ “A 10.0 g”</small></div>
           </div>
-          <div class="mock-nudge"><span class="mock-wave"></span>“You were on 4b, limiting reagent.”</div>
+          <div class="mock-nudge"><span class="mock-wave"><i></i><i></i><i></i><i></i><i></i></span>“You were on 4b, limiting reagent.”</div>
           <div class="mock-trace">
-            <span class="dot ok"></span> FOCUSED
-            <span class="dot warn"></span> DRIFTING 3.2s
-            <span class="dot quiet"></span> UNCERTAIN
+            <span><i class="dot ok"></i>FOCUSED</span>
+            <span><i class="dot warn"></i>DRIFTING 3.2s</span>
+            <span><i class="dot quiet"></i>UNCERTAIN</span>
           </div>
         </div>
+        <div class="orbit-label ol-1">prefix + suffix</div>
+        <div class="orbit-label ol-2">getBoundingClientRect()</div>
+        <div class="orbit-label ol-3">saved-context fallback</div>
+      </div>
+      <dl class="hero-stats">
+        <div><dt>Restore check</dt><dd>prefix + suffix + viewport</dd></div>
+        <div><dt>Storage</dt><dd>IndexedDB, never uploaded</dd></div>
+        <div><dt>Corrections</dt><dd>4-of-5 supermajority</dd></div>
+        <div><dt>Drift hold</dt><dd>3 s before a log</dd></div>
+      </dl>
+    </div>
+
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>Focused</span><i>✦</i><span class="o">Writing</span><i>✦</i><span>Uncertain</span><i>✦</i><span class="o">Drifting</span><i>✦</i><span>Resume, verified</span><i>✦</i>
+        <span>Focused</span><i>✦</i><span class="o">Writing</span><i>✦</i><span>Uncertain</span><i>✦</i><span class="o">Drifting</span><i>✦</i><span>Resume, verified</span><i>✦</i>
       </div>
     </div>
 
-    <section class="how">
-      <p class="section-kicker">The loop</p>
+    <section class="how" id="loop">
+      <header class="section-head">
+        <p class="section-kicker">§01 · The loop</p>
+        <h2 class="display reveal-lines">Three moves.<br /><em>Zero guessing.</em></h2>
+      </header>
       <ol class="how-grid">
-        <li><span>01</span><h3>Save the passage</h3><p>URL, problem id, the anchor text, and the text immediately before and after it.</p></li>
-        <li><span>02</span><h3>Notice the drift</h3><p>Smoothed screen and face cues. On-task screen with head down counts as writing, not drift.</p></li>
-        <li><span>03</span><h3>Resume, verified</h3><p>The fragment link lands on the twin-safe passage; the check fails honestly if it cannot.</p></li>
+        <li class="how-row reveal-up"><span class="how-num">01</span><div><h3>Save the passage</h3><p>URL, problem id, the anchor text, and the text immediately before and after it.</p></div><code class="how-code">{ anchor, prefix, suffix }</code></li>
+        <li class="how-row reveal-up"><span class="how-num">02</span><div><h3>Notice the drift</h3><p>Smoothed screen and face cues. On-task screen with head down counts as writing, not drift.</p></div><code class="how-code">DRIFTING ≥ 3.0s</code></li>
+        <li class="how-row reveal-up"><span class="how-num">03</span><div><h3>Resume, verified</h3><p>The fragment link lands on the twin-safe passage; the check fails honestly if it cannot.</p></div><code class="how-code">#:~:text=Part II-,4b.</code></li>
       </ol>
     </section>
 
-    <section class="grid-3">
-      <article class="panel">
-        <p class="section-kicker">Modes</p>
-        <h2>Three modes, one checkpoint core</h2>
+    <section class="grid-3 bento" id="modes">
+      <article class="panel tilt-soft reveal-up">
+        <p class="section-kicker">§02 · Modes</p>
+        <h2>Three modes, <em>one</em> checkpoint core</h2>
         <ul class="mode-list">
-          <li><strong>Resume-only</strong><span>Checkpoints and verified restore. No detection.</span></li>
-          <li><strong>Screen-only nudges</strong><span>On-device screen text decides focus. No camera.</span></li>
-          <li><strong>Full fusion</strong><span>Screen + face cues (face adapter stubbed here), correction memory, verified restore.</span></li>
+          <li><b>I</b><strong>Resume-only</strong><span>Checkpoints and verified restore. No detection.</span></li>
+          <li><b>II</b><strong>Screen-only nudges</strong><span>On-device screen text decides focus. No camera.</span></li>
+          <li><b>III</b><strong>Full fusion</strong><span>Screen + face cues (face adapter stubbed here), correction memory, verified restore.</span></li>
         </ul>
         <p class="micro">All three call the same checkpoint and restore code path.</p>
       </article>
-      <article class="panel">
-        <p class="section-kicker">Supported content</p>
-        <h2>What restores where</h2>
+      <article class="panel tilt-soft reveal-up">
+        <p class="section-kicker">§03 · Supported content</p>
+        <h2>What restores <em>where</em></h2>
         <table class="support">
           <thead><tr><th>Content</th><th>Hosted demo</th><th>Extension</th></tr></thead>
           <tbody>
@@ -112,22 +152,22 @@
         </table>
         <p class="micro">Extension built-in restore was verified end-to-end in Chromium 141. Uploaded and pasted pages use the same content script; they are implemented but not yet verified in that harness. Text fragments do not work inside Google Docs, so the UI never claims a verified restore there.</p>
       </article>
-      <article class="panel">
-        <p class="section-kicker">Install</p>
-        <h2>Extension in three steps</h2>
+      <article class="panel tilt-soft reveal-up" id="install">
+        <p class="section-kicker">§04 · Install</p>
+        <h2>Extension in <em>three</em> steps</h2>
         <ol class="install-steps">
           <li>Build the extension: <code>npm run build:extension</code>.</li>
           <li>Chrome → <code>chrome://extensions</code> → Developer mode → Load unpacked → <code>extension/dist</code>.</li>
           <li>Copy the extension ID into the extension setup dialog here so the page can talk to it.</li>
         </ol>
         <p class="micro">The web app ↔ extension bridge uses <code>chrome.runtime.sendMessage</code> with <code>externally_connectable</code>, not page injection.</p>
-        <button id="extension-btn-2" class="btn small" type="button">Open setup steps</button>
+        <button id="extension-btn-2" class="btn small magnetic" type="button">Open setup steps →</button>
       </article>
     </section>
 
-    <section class="url-check panel">
+    <section class="url-check panel reveal-up">
       <div>
-        <p class="section-kicker">Hard case</p>
+        <p class="section-kicker">§05 · Hard case</p>
         <h2>Paste an assignment URL</h2>
         <p class="muted">The hosted page cannot read another site because of browser same-origin rules. Watch what it says instead of pretending.</p>
       </div>
@@ -136,7 +176,7 @@
           <label for="url-input" class="micro">Assignment URL</label>
           <div class="field-row">
             <input id="url-input" type="url" placeholder="https://classroom.example.com/chem-unit-4" autocomplete="off" />
-            <button class="btn small" type="submit">Open</button>
+            <button class="btn small primary" type="submit">Open</button>
           </div>
         </form>
         <div class="upload-row">
@@ -147,12 +187,15 @@
       </div>
     </section>
     <footer class="site-footer">
-      <span>Deep Work Field · TripleH 2026</span>
-      <span>Thresholds frozen for evaluation · no analytics · no backend</span>
+      <div class="footer-mark" aria-hidden="true">Deep Work <em>Field</em></div>
+      <div class="footer-row">
+        <span>Deep Work Field · TripleH 2026</span>
+        <span>Thresholds frozen for evaluation · no analytics · no backend</span>
+      </div>
     </footer>
   </section>
 
-  <section id="session" hidden>
+<section id="session" hidden>
     <div class="session-head">
       <div>
         <p class="eyebrow">Session</p>

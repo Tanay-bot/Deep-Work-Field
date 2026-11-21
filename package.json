@@ -13,6 +13,10 @@
     "eval": "node tools/results.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.2.6",
+    "@fontsource-variable/jetbrains-mono": "^5.2.5",
+    "@fontsource/instrument-serif": "^5.2.5",
+    "gsap": "^3.13.0",
     "three": "^0.169.0"
   },
   "devDependencies": {

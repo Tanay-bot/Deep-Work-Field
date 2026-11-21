@@ -7,6 +7,7 @@ import { captureCheckpointFromElement, newId, pickAnchorElement } from '../../sh
 import { embedText } from '../../shared/src/embed';
 import { correctionVote } from '../../shared/src/knn';
 import { FocusEngine, type EngineDecision } from '../../shared/src/engine';
+import './lib/fx';
 import { Galaxy } from './lib/galaxy';
 import { Voice } from './lib/voice';
 import { StudyRecorder, studyCsv, downloadBlob } from './lib/study';
