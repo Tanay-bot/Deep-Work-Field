@@ -267,13 +267,48 @@ function mountGalaxy(): void {
 }
 
 function setupVoice(): void {
-  void state.voice.preload((fraction, label) => {
+  const progress = (fraction: number, label: string) => {
     dom.voiceStatus.textContent = label;
     dom.voiceBar.style.width = `${Math.round(fraction * 100)}%`;
-    dom.voiceBackend.textContent = state.voice.backend === 'device' ? 'device speech' : state.voice.backend;
-  });
+    dom.voiceBackend.textContent = state.voice.backend === 'kokoro' ? 'Kokoro HD' : state.voice.backend === 'device' ? 'device speech' : state.voice.backend;
+    const hd = document.getElementById('voice-hd') as HTMLButtonElement | null;
+    if (hd && state.voice.backend === 'kokoro') {
+      hd.textContent = 'HD voice on';
+      hd.disabled = true;
+      state.voice.prepare(spokenCheckpoint(state.checkpoint));
+    }
+  };
+  void state.voice.preload(progress);
   window.speechSynthesis?.addEventListener?.('voiceschanged', () => {
-    if (state.voice.ready) dom.voiceBackend.textContent = 'device speech';
+    if (state.voice.backend === 'device') dom.voiceBackend.textContent = 'device speech';
+  });
+  const hd = $('voice-hd') as HTMLButtonElement;
+  if (state.voice.downloaded) hd.textContent = 'Loading HD voice from cache…';
+  hd.addEventListener('click', () => {
+    hd.disabled = true;
+    void state.voice.loadKokoro(progress).then((ok) => {
+      if (!ok) {
+        hd.disabled = false;
+        hd.textContent = 'Retry HD voice download';
+      }
+    });
+  });
+  $('voice-test').addEventListener('click', () => {
+    const line = spokenCheckpoint(state.checkpoint);
+    if (state.voice.backend !== 'kokoro') {
+      state.voice.speak(line);
+      dom.voiceStatus.textContent = `Device voice: “${line}”`;
+      return;
+    }
+    const t0 = performance.now();
+    dom.voiceStatus.textContent = 'Synthesizing with Kokoro…';
+    void state.voice
+      .speakKokoro(line)
+      .then((seconds) => (dom.voiceStatus.textContent = `Kokoro spoke ${seconds.toFixed(1)} s of audio (synthesized in ${((performance.now() - t0) / 1000).toFixed(1)} s): “${line}”`))
+      .catch(() => {
+        state.voice.speak(line);
+        dom.voiceStatus.textContent = 'Kokoro failed for this line; used the device voice.';
+      });
   });
 }
 
@@ -292,6 +327,8 @@ function applyState(focusState: FocusState): void {
 }
 
 function renderCheckpoint(): void {
+  // Pre-synthesize the nudge for this checkpoint so the HD voice is instant.
+  state.voice.prepare(spokenCheckpoint(state.checkpoint));
   const cp = state.checkpoint;
   dom.checkpointEmpty.hidden = !!cp;
   dom.checkpointBody.hidden = !cp;

@@ -366,7 +366,11 @@
           </div>
           <p id="voice-status" class="muted small">Preparing the local voice…</p>
           <div class="progress"><i id="voice-bar-fill"></i></div>
-          <p class="micro">Kokoro is not bundled in this build; the device voice is the fallback. No nudge audio is recorded in study mode.</p>
+          <div class="row wrap">
+            <button id="voice-hd" class="btn small" type="button">Download HD voice (~90 MB, once)</button>
+            <button id="voice-test" class="btn small ghost" type="button">Test the nudge</button>
+          </div>
+          <p class="micro">The HD voice is Kokoro-82M, downloaded once from Hugging Face when you click, then cached and run on this device (offline after that). Without it, your browser’s voice is used. No nudge audio is recorded in study mode.</p>
         </div>
         <div class="card small print-card">
           <p class="section-kicker">Honest scope</p>

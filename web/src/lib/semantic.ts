@@ -4,6 +4,8 @@
  * /ort and remote loading is disabled, so nothing is fetched from a CDN.
  * Loaded lazily the first time live mode starts.
  */
+import { withModelEnv } from './models';
+
 type Extractor = (text: string, options: { pooling: 'mean'; normalize: boolean }) => Promise<{ data: Float32Array }>;
 
 let extractor: Promise<Extractor> | null = null;
@@ -17,21 +19,22 @@ export function loadSemantic(onProgress: (label: string) => void = () => {}): Pr
   semanticStatus = 'loading';
   extractor = (async () => {
     const tf = await import('@huggingface/transformers');
-    tf.env.allowRemoteModels = false;
-    tf.env.allowLocalModels = true;
-    tf.env.localModelPath = new URL('models/', document.baseURI).href;
-    const wasm = tf.env.backends.onnx.wasm;
-    if (wasm) {
-      wasm.wasmPaths = new URL('ort/', document.baseURI).href;
-      wasm.numThreads = 1;
-    }
-    const pipe = await tf.pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-      dtype: 'q8',
-      device: 'wasm',
-      progress_callback: (p: { status?: string; progress?: number }) => {
-        if (p.status === 'progress' && typeof p.progress === 'number') onProgress(`Loading the on-device goal matcher… ${Math.round(p.progress)}%`);
+    const pipe = await withModelEnv(
+      (env) => {
+        env.allowRemoteModels = false;
+        env.allowLocalModels = true;
+        env.localModelPath = new URL('models/', document.baseURI).href;
       },
-    });
+      () =>
+        tf.pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+          dtype: 'q8',
+          device: 'wasm',
+          local_files_only: true,
+          progress_callback: (p: { status?: string; progress?: number }) => {
+            if (p.status === 'progress' && typeof p.progress === 'number') onProgress(`Loading the on-device goal matcher… ${Math.round(p.progress)}%`);
+          },
+        }),
+    );
     semanticStatus = 'ready';
     onProgress('Goal matcher ready (MiniLM, on-device).');
     return pipe as unknown as Extractor;

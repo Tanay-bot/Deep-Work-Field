@@ -47,7 +47,9 @@ locally and can override later calls only on a 4-of-5 supermajority.
   paper reads as WRITING, not drift.
 - **OCR fallback**: for apps outside Chrome, share a window or screen and **Tesseract.js** reads it
   on-device every 3 seconds; the text feeds the same matcher and engine.
-- **Voice** uses the browser's on-device speech synthesis.
+- **Voice**: the browser's speech by default; optionally **Kokoro-82M** HD voice, downloaded once
+  (~90 MB) and then run on-device from cache. The nudge line is pre-synthesized so it plays
+  instantly.
 - **Galaxy** is a WebGL2 shader point cloud whose four shapes morph on the GPU with the focus state,
   plus a Document Picture-in-Picture mini-galaxy.
 - **Planner**: a focus-by-hour curve from your live sessions suggests deep-work blocks.
@@ -70,7 +72,8 @@ and records whether Chrome or the app's single fallback scroll put the passage o
   mode (real tabs) needs the extension; Full fusion live also needs the camera.
 - Face cues are real (MediaPipe) but have only been tested with a fake camera in CI and by hand —
   not measured on a study group. Head pose is a proxy for attention.
-- Kokoro voice is **not shipped** in this build.
+- The Kokoro HD voice is an optional ~90 MB one-time download from Hugging Face (the only network
+  fetch, and only when you click it).
 - Text fragments do not work inside Google Docs (saved context only there).
 - The evaluation study has not been run with students yet; any numbers shown are a pilot. Main metric
   when it is run: "time to first qualifying answer edit".

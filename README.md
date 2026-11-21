@@ -138,7 +138,12 @@ ablation-style record of decisions logged while corrections were active, not a c
   4 limiting reagent": worksheet 0.67, a stoichiometry lecture 0.42 (0/5 goal terms, so the term
   matcher alone would miss it), AP Bio homework 0.28, Minecraft / lofi / Instagram ≈ 0. It can only
   *raise* on-task evidence; the hashed embedder still keys correction memory.
-- **Kokoro**: not bundled; nudges use device `speechSynthesis`.
+- **Kokoro HD voice (shipped, opt-in)**: **Download HD voice** fetches Kokoro-82M (q8 ONNX, ~90 MB)
+  once from Hugging Face — the app's only network download, started by the user — then it runs on
+  the vendored WebAssembly runtime from the browser cache, offline. Synthesis takes ~10 s on
+  single-thread WASM, so the nudge line is pre-synthesized whenever the checkpoint changes and plays
+  instantly (measured 0.0 s); an unprepared line falls back to the device voice immediately. Model
+  loads are serialized so the semantic matcher stays local-only (`local_files_only`).
 - **OCR fallback (shipped)**: **Watch another app (OCR)** shares a window or the whole screen; every
   3 s one downscaled grayscale frame is read by Tesseract.js on-device (worker, wasm core and the
   `eng` best_int model vendored in `web/public/tesseract`, ~11 MB; no CDN). The text goes through
@@ -161,7 +166,8 @@ ablation-style record of decisions logged while corrections were active, not a c
   session listens, only from the visible tab; restricted pages are reported by title). The web app
   scores it with goal-term coverage plus "this is the page you saved" and runs the same focus engine
   and trace. Screen-only mode nudges on real tabs; full fusion still needs face cues.
-- **Data**: no accounts, backend, analytics, or network calls for detection. The hosted page does use a
+- **Data**: no accounts, backend, analytics, or network calls for detection (the optional HD-voice
+  download is the one user-initiated network fetch). The hosted page does use a
   service worker for offline assets.
 
 ## Offline
