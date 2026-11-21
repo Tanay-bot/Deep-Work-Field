@@ -1,7 +1,8 @@
 import { defineConfig, type Plugin } from 'vite';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createReadStream, existsSync, mkdirSync, readdirSync, copyFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -33,6 +34,29 @@ function demoWorksheets(): Plugin {
   };
 }
 
+/** Writes the build version and the essential built assets into dist/sw.js. */
+function serviceWorkerManifest(): Plugin {
+  return {
+    name: 'dwf-sw-manifest',
+    apply: 'build',
+    closeBundle() {
+      const dist = resolve(projectRoot, 'web/dist');
+      const sw = resolve(dist, 'sw.js');
+      if (!existsSync(sw)) return;
+      const assets = readdirSync(resolve(dist, 'assets'))
+        .filter((name) => /^(index-.*\.(js|css)|.*latin(-ext)?-.*\.woff2)$/.test(name))
+        .filter((name) => statSync(resolve(dist, 'assets', name)).size < 1_500_000)
+        .map((name) => `/assets/${name}`)
+        .sort();
+      const version = createHash('sha256').update(assets.join('|') + readFileSync(resolve(dist, 'index.html'))).digest('hex').slice(0, 10);
+      const body = readFileSync(sw, 'utf8')
+        .replace("'dwf-__DWF_VERSION__'", `'dwf-${version}'`)
+        .replace('/* __DWF_PRECACHE__ */ []', JSON.stringify(assets));
+      writeFileSync(sw, body);
+    },
+  };
+}
+
 const extraHosts = (process.env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS ?? '')
   .split(',')
   .map((host) => host.trim())
@@ -42,7 +66,7 @@ export default defineConfig({
   root: resolve(projectRoot, 'web'),
   publicDir: resolve(projectRoot, 'web/public'),
   base: '/',
-  plugins: [demoWorksheets()],
+  plugins: [demoWorksheets(), serviceWorkerManifest()],
   server: {
     host: '0.0.0.0',
     port: 3000,
