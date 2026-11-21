@@ -1559,8 +1559,34 @@ function setupCapture(): void {
     if (event.origin !== window.location.origin) return;
     const data = event.data as { source?: string; type?: string; chars?: number; qualifies?: boolean; newline?: boolean };
     if (!data || data.source !== 'dwf-demo-worksheet') return;
-    if (data.type === 'dwf-edit') {
+    // Direct, verified-scope tracking wins; the posted count is only a fallback
+    // for a worksheet window this page cannot reach (and it is a total, not a delta).
+    if (data.type === 'dwf-edit' && !detachEditTracking && state.restored) {
       onAnswerInput(Number(data.chars ?? 0), Boolean(data.newline));
+    }
+    if (data.type === 'dwf-capture' && event.source && 'document' in (event.source as Window)) {
+      const win = event.source as Window;
+      const problemId = String((data as { problemId?: string }).problemId ?? '');
+      try {
+        const heading = win.document.querySelector(`[data-problem-id="${CSS.escape(problemId)}"] h3`);
+        const checkpoint = heading ? captureCheckpointFromElement(win.document, heading, { goal: state.goal, problemId }) : null;
+        if (!checkpoint) {
+          toast('That problem could not be captured from the worksheet.', 'warn');
+          return;
+        }
+        beginSession();
+        showSession();
+        state.checkpoint = checkpoint;
+        state.worksheet = win;
+        state.lastResumeUrl = buildTextFragmentUrl(checkpoint.url, checkpoint);
+        void saveCheckpoint(checkpoint);
+        milestone('saved', `Saved ${checkpoint.problemId}`);
+        renderCheckpoint();
+        dom.stepDrift.disabled = false;
+        toast(`Checkpoint saved for problem ${checkpoint.problemId}.`, 'ok');
+      } catch {
+        toast('The worksheet window could not be read.', 'warn');
+      }
     }
   });
 }

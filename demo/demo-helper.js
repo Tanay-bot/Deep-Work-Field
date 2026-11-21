@@ -61,13 +61,14 @@
     setTimeout(function () { pill.style.display = 'none'; }, 6000);
   };
 
-  var button = document.getElementById('capture-4b');
-  if (button) {
+  [['capture-4b', '4b'], ['capture-2a', '2a']].forEach(function (pair) {
+    var button = document.getElementById(pair[0]);
+    if (!button) return;
     button.addEventListener('click', function () {
-      var cap = window.DWF_CAPTURE('4b');
-      if (cap) send({ type: 'dwf-capture', problemId: '4b' });
+      var cap = window.DWF_CAPTURE(pair[1]);
+      if (cap) send({ type: 'dwf-capture', problemId: pair[1] });
     });
-  }
+  });
 
   document.querySelectorAll('[data-answer-region]').forEach(function (region) {
     var field = region.querySelector('textarea,input');

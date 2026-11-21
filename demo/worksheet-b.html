@@ -19,7 +19,12 @@
   textarea { width:100%; min-height:88px; border:1px solid #c3d2c7; border-radius:6px; background:#fff; padding:10px 12px; font:15px/1.55 ui-monospace, Menlo, monospace; resize:vertical; }
   .answer-label { font: 600 11px/1.4 ui-sans-serif, system-ui, sans-serif; letter-spacing:.1em; text-transform:uppercase; color:#5b6b61; margin-bottom:4px; }
   .spacer { height: 150px; }
-  .toolbar { position: fixed; left: 18px; bottom: 18px; background:#10261bee; color:#e8f5ec; border-radius:999px; padding:8px 16px; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
+  textarea:focus { outline:2px solid #2f6b4f55; border-color:#2f6b4f; }
+  .data sub, p sub { font-size: .75em; }
+  .toolbar { position: fixed; left: 18px; bottom: 18px; display:flex; align-items:center; gap:10px; background:#050407f0; color:#e8eefb; border-radius: 999px; padding: 8px 10px 8px 16px; font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; box-shadow: 0 10px 30px #10182733; z-index: 9; }
+  .toolbar button { background:#ffb547; color:#1b2233; border:0; border-radius:999px; padding:7px 13px; font:700 12px/1 ui-sans-serif, system-ui, sans-serif; cursor:pointer; }
+  .toolbar .dot { width:7px; height:7px; border-radius:50%; background:#ffb547; box-shadow:0 0 8px #ffb547; }
+  @media (max-width: 720px) { .sheet { margin:0; padding:28px 20px 70px; border-radius:0; } .spacer { height:90px; } }
 
   /* Deep Work Field landing state: the amber thread from the app ends here. */
   ::target-text { background: #ffb54755; color: inherit; }
@@ -73,7 +78,11 @@
     <div class="spacer"></div>
   </section>
 </article>
-<div class="toolbar">Deep Work Field demo worksheet · AP Biology</div>
+<div class="toolbar">
+  <span class="dot"></span>
+  <span>Deep Work Field demo worksheet · AP Biology</span>
+  <button id="capture-2a" type="button">Save 2a as checkpoint</button>
+</div>
 <script src="/demo/demo-helper.js"></script>
 </body>
 </html>
