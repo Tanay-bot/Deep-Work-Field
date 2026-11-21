@@ -20,6 +20,8 @@ function fnv1a(str: string): number {
 }
 
 export const EMBEDDING_DIMS = 192;
+/** Bump whenever tokenization or hashing changes: stored corrections from another version are ignored. */
+export const EMBEDDING_VERSION = 2;
 
 const SHORT_STOPWORDS = new Set(['an', 'as', 'at', 'be', 'by', 'do', 'go', 'he', 'if', 'in', 'is', 'it', 'me', 'my', 'no', 'of', 'oh', 'ok', 'on', 'or', 'so', 'to', 'up', 'us', 'we']);
 

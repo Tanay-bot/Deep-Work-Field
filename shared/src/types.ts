@@ -64,6 +64,10 @@ export interface Correction {
   /** Short excerpt of the moment, shown in the UI. */
   excerpt: string;
   traceId?: string;
+  /** Lab-tool corrections (demo "label 5", "3–2 split") are session-only and never persisted. */
+  lab?: boolean;
+  /** Version of the embedder that produced `embedding`; mismatches are ignored. */
+  featureVersion?: number;
 }
 
 export interface CorrectionVote {

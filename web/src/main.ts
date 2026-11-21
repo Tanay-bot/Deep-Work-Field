@@ -4,7 +4,7 @@ import type { Checkpoint, Correction, FaceCue, FocusState, SessionRecord, TraceE
 import { buildTextFragmentUrl } from '../../shared/src/fragments';
 import { verifyCheckpointAsync } from '../../shared/src/verify';
 import { captureCheckpointFromElement, newId, pickAnchorElement } from '../../shared/src/checkpoint';
-import { embedText } from '../../shared/src/embed';
+import { embedText, EMBEDDING_VERSION } from '../../shared/src/embed';
 import { matchScreen, type ScreenSample } from '../../shared/src/screen';
 import { focusByHour } from '../../shared/src/planner';
 import { correctionVote } from '../../shared/src/knn';
@@ -260,7 +260,8 @@ function setupVoice(): void {
 function applyState(focusState: FocusState): void {
   dom.statePill.textContent = focusState;
   dom.statePill.dataset.state = focusState;
-  dom.galaxyState.textContent = focusState;
+  // Resume-only has no detection: say so instead of showing a confident FOCUSED.
+  dom.galaxyState.textContent = state.mode === 'resume-only' ? 'Detection off' : focusState;
   dom.galaxyState.dataset.state = focusState;
   dom.miniPanel.dataset.state = focusState;
   state.galaxy?.setState(focusState);
@@ -1038,6 +1039,8 @@ function setMode(mode: Mode): void {
   dom.modePill.textContent = modeName(mode);
   localStorage.setItem(STORAGE.mode, mode);
   state.engine?.updateOptions({ mode });
+  // A mode switch starts a fresh run: smoothing, hold and episode flags reset.
+  state.engine?.resetRun(Date.now());
   state.study.setMode(mode);
   if (state.session) {
     state.session.mode = mode;
@@ -1049,11 +1052,12 @@ function setMode(mode: Mode): void {
     applyState('FOCUSED');
     toast('Resume-only: detection and nudges are off; checkpoints and restore still work.');
   } else {
+    applyState(state.trace[state.trace.length - 1]?.state ?? 'FOCUSED');
     toast(`${modeName(mode)} enabled.`);
   }
 }
 
-function formatCorrectionTargets(count: number, label: 'on-task' | 'drift'): Correction[] {
+function formatCorrectionTargets(count: number, label: 'on-task' | 'drift', lab = false): Correction[] {
   const entry = currentEntry();
   if (!entry) return [];
   const embedding = embedText(entry.inputs.screenText);
@@ -1075,6 +1079,8 @@ function formatCorrectionTargets(count: number, label: 'on-task' | 'drift'): Cor
     embedding,
     excerpt: candidate.inputs.screenText.slice(0, 110),
     traceId: candidate.id,
+    lab,
+    featureVersion: EMBEDDING_VERSION,
   }));
 }
 
@@ -1084,13 +1090,19 @@ async function storeCorrections(corrections: Correction[]): Promise<void> {
     return;
   }
   for (const correction of corrections) {
-    await saveCorrection(correction);
+    // Lab-tool corrections stay in memory for this session only.
+    if (!correction.lab) await saveCorrection(correction);
     state.corrections.push(correction);
   }
   state.engine?.updateOptions({ corrections: state.corrections });
   updateCorrectionPanel();
   state.study.log('correction', `stored=${corrections.length}; label=${corrections[0]?.label ?? 'unknown'}`);
-  toast(`${corrections.length} correction${corrections.length === 1 ? '' : 's'} stored locally for this goal.`, 'ok');
+  toast(
+    corrections[0]?.lab
+      ? `${corrections.length} lab correction${corrections.length === 1 ? '' : 's'} added for this session only (not saved, never trains future sessions).`
+      : 'Correction saved locally for this goal.',
+    'ok',
+  );
 }
 
 function correctSelected(label: 'on-task' | 'drift'): void {
@@ -1099,7 +1111,7 @@ function correctSelected(label: 'on-task' | 'drift'): void {
 }
 
 function correctFive(): void {
-  const targets = formatCorrectionTargets(5, 'on-task');
+  const targets = formatCorrectionTargets(5, 'on-task', true);
   void storeCorrections(targets);
 }
 
@@ -1119,6 +1131,8 @@ function addSplitTest(): void {
     embedding,
     excerpt: `${entry.inputs.screenText.slice(0, 80)} · split-test ${index + 1}`,
     traceId: `${entry.id}-split-${index}`,
+    lab: true,
+    featureVersion: EMBEDDING_VERSION,
   }));
   void storeCorrections(corrections).then(() => toast('3 on-task / 2 drift stored. Run a later similar moment to see UNCERTAIN.', 'ok'));
 }
@@ -1498,9 +1512,18 @@ function setupLanding(): void {
       return;
     }
     const opened = window.open(parsed.href, '_blank');
-    dom.unsupportedBody.textContent = opened
-      ? 'The page opened in a new tab. This hosted app cannot read another site’s page because of browser same-origin rules, so it will not claim a checkpoint or a verified restore here.'
-      : 'The browser blocked the new tab. Even with the tab open, this hosted app cannot read another site’s page because of browser same-origin rules.';
+    const blocked = opened ? '' : ' (Your browser blocked the new tab; allow pop-ups to open it.)';
+    if (state.extensionConnected) {
+      $('unsupported-title').textContent = 'Save it with the extension';
+      dom.unsupportedBody.textContent = `The page opened in a new tab.${blocked} This site cannot read another site’s page, but your extension can.`;
+      $('unsupported-next').textContent = 'In that tab: select the problem’s heading, click the Deep Work Field toolbar button, and press Save. Restore from the popup verifies the passage on the page itself.';
+      dom.unsupportedExt.hidden = true;
+    } else {
+      $('unsupported-title').textContent = 'This page needs the Chrome extension';
+      dom.unsupportedBody.textContent = `The page opened in a new tab.${blocked} Browsers do not let one site read another site’s page, so this hosted app cannot save or verify a passage there. The free extension can.`;
+      $('unsupported-next').textContent = 'Nothing has been saved for this page, so there is nothing to restore or verify yet.';
+      dom.unsupportedExt.hidden = false;
+    }
     dom.unsupportedUrl.textContent = parsed.href;
     openDialog(dom.unsupportedDialog);
   });

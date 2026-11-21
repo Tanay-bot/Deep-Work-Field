@@ -19,6 +19,8 @@ const entry = `
   export { FocusEngine } from '${root}/shared/src/engine.ts';
   export { focusByHour } from '${root}/shared/src/planner.ts';
   export { matchScreen } from '${root}/shared/src/screen.ts';
+  export { correctionVote } from '${root}/shared/src/knn.ts';
+  export { embedText, EMBEDDING_VERSION } from '${root}/shared/src/embed.ts';
   export { DEFAULT_THRESHOLDS } from '${root}/shared/src/config.ts';
 `;
 const bundle = await build({
@@ -182,6 +184,21 @@ await run('screen matcher: goal-term coverage and saved-page context', '<p>x</p>
   const sheet = DWF.matchScreen(goal, { url: 'https://a.test/ws.html#x', title: 'Worksheet', text: 'Problem 6', restricted: false, t: 0 }, { docId: 'https://a.test/ws.html', anchor: '4b' });
   const fun = DWF.matchScreen(goal, { url: 'https://yt.test/v', title: 'Minecraft parkour', text: 'best jumps', restricted: false, t: 0 }, null);
   return (sheet.sim >= 0.8 && fun.sim === 0) || JSON.stringify({ sheet, fun });
+});
+
+// 14. Correction memory: copies of one moment vote once; stale features ignored.
+await run('corrections: one vote per source moment, other embedder versions ignored', '<p>x</p>', async () => {
+  const e = DWF.embedText('minecraft parkour compilation');
+  const v = DWF.EMBEDDING_VERSION;
+  const base = { goal: 'g', label: 'on-task', embedding: e, excerpt: '', featureVersion: v };
+  const copies = Array.from({ length: 5 }, (_, i) => ({ ...base, id: `c${i}`, createdAt: i, traceId: 'same-moment' }));
+  const r1 = DWF.correctionVote(copies, e, 'g', 5, 0.3, 4);
+  if (r1.neighbors !== 1 || r1.decision !== 'none') return `5 copies counted as ${r1.neighbors} neighbours (${r1.decision})`;
+  const old = Array.from({ length: 5 }, (_, i) => ({ ...base, id: `o${i}`, createdAt: i, traceId: `t${i}`, featureVersion: 1 }));
+  const r2 = DWF.correctionVote(old, e, 'g', 5, 0.3, 4);
+  if (r2.neighbors !== 0) return 'old-version corrections were used';
+  const lab = Array.from({ length: 5 }, (_, i) => ({ ...base, id: `l${i}`, createdAt: i, traceId: 'same', lab: true }));
+  return DWF.correctionVote(lab, e, 'g', 5, 0.3, 4).decision === 'on-task' || 'lab simulation no longer overrides';
 });
 
 // 11. Chrome's own scroll-to-text must land the right 4b — no app scrolling.

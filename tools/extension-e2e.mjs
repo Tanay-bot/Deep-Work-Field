@@ -89,6 +89,13 @@ for (const p of context.pages()) {
   if (!ok) fail(`tab landed wrong: ${JSON.stringify(where)}`);
   else console.log(`✓ restore tab shows Part II 4b (top ${where.problemTop}px), answer key offscreen (${where.keyTop}px)`);
 }
+if (process.env.DWF_POPUP_SHOT) {
+  await panel.setViewportSize({ width: 360, height: 560 });
+  await panel.reload();
+  await panel.waitForTimeout(600);
+  await panel.screenshot({ path: process.env.DWF_POPUP_SHOT });
+}
+
 // Live screen path: the real active tab drives the focus engine.
 {
   const app2 = await context.newPage();

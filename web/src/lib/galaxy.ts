@@ -379,8 +379,6 @@ export class Galaxy {
     this.pulse = 1;
     document.documentElement.style.setProperty('--state', PALETTE[state].css);
     document.documentElement.dataset.focus = state;
-    const host = document.getElementById('galaxy-state');
-    if (host) host.textContent = state;
   }
 
   /** 0..1 page scroll progress; dollies the camera through the disc. */

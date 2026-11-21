@@ -7,38 +7,88 @@ interface PopupCheckpoint {
   problemId: string;
   title: string;
   url: string;
+  docId?: string;
   createdAt: number;
 }
 
-const goalInput = document.getElementById('goal') as HTMLInputElement;
-const saveButton = document.getElementById('save') as HTMLButtonElement;
-const status = document.getElementById('status') as HTMLElement;
-const list = document.getElementById('list') as HTMLElement;
-const result = document.getElementById('result') as HTMLElement;
-const copyId = document.getElementById('copy-id') as HTMLButtonElement;
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const goalInput = $<HTMLInputElement>('goal');
+const primary = $<HTMLButtonElement>('primary');
+const secondary = $<HTMLButtonElement>('secondary');
+const status = $('status');
+const list = $('list');
+const shot = $<HTMLInputElement>('shot');
+const latestBox = $('latest');
 
-function setStatus(text: string, kind: 'ok' | 'warn' | 'muted' = 'muted'): void {
+type Kind = 'ok' | 'warn' | 'muted' | 'busy';
+function setStatus(text: string, kind: Kind = 'muted'): void {
   status.textContent = text;
   status.dataset.kind = kind;
 }
 
 function relative(ts: number): string {
-  const seconds = Math.round((Date.now() - ts) / 1000);
+  const seconds = Math.max(0, Math.round((Date.now() - ts) / 1000));
   if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
-  return `${Math.round(seconds / 3600)}h ago`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h ago`;
+  return `${Math.round(seconds / 86400)}d ago`;
 }
 
-async function refresh(): Promise<void> {
-  const stored = await chrome.storage.local.get(['dwf:goal', 'dwf:lastResult']);
-  goalInput.value = stored['dwf:goal'] ?? 'AP Chem unit 4';
-  const last = stored['dwf:lastResult'];
-  if (last?.status === 'verified') result.textContent = `Last restore verified (${relative(last.at)}).`;
-  else if (last?.status === 'saved-context') result.textContent = `Last restore failed verification (${last.reason}); saved context was shown.`;
-  else if (last?.status === 'pending') result.textContent = 'A restore tab is opening; verification is running.';
-  else result.textContent = 'No restore checked yet.';
-  result.dataset.kind = last?.status === 'verified' ? 'ok' : last?.status === 'saved-context' ? 'warn' : 'muted';
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
+const pageOf = (url: string) => {
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return url;
+  }
+};
 
+let latest: PopupCheckpoint | null = null;
+let onSavedPage = false;
+
+function describeResult(last: any): void {
+  if (!last) return;
+  const map: Record<string, [string, Kind]> = {
+    pending: ['Restore tab opened; checking the passage…', 'busy'],
+    verified: [`Verified: back at your place${last.landing === 'dom-scroll' ? ' (landed by the extension’s scroll)' : ''}.`, 'ok'],
+    ambiguous: ['Multiple matching passages on that page, so none was picked. Saved context is shown there.', 'warn'],
+    'saved-context': [`Could not verify (${last.reason}); saved context is shown on the page.`, 'warn'],
+    cancelled: ['The restore tab was closed before it was checked.', 'muted'],
+  };
+  const hit = map[last.status];
+  if (hit && Date.now() - (last.at ?? 0) < 10 * 60 * 1000) setStatus(hit[0], hit[1]);
+}
+
+async function restore(id: string): Promise<void> {
+  primary.disabled = true;
+  setStatus('Opening your place and checking the passage…', 'busy');
+  const reply = await chrome.runtime.sendMessage({ type: 'DWF_RESTORE_FROM_POPUP', id });
+  primary.disabled = false;
+  if (!reply?.ok) setStatus(reply?.error ?? 'Restore failed.', 'warn');
+}
+
+async function save(): Promise<void> {
+  const goal = goalInput.value.trim() || 'AP Chem unit 4';
+  await chrome.storage.local.set({ 'dwf:goal': goal, 'dwf:screenshot': shot.checked });
+  primary.disabled = true;
+  secondary.disabled = true;
+  setStatus('Saving the passage you selected…', 'busy');
+  const reply = await chrome.runtime.sendMessage({ type: 'DWF_SAVE_CHECKPOINT_FROM_POPUP', goal, screenshot: shot.checked });
+  primary.disabled = false;
+  secondary.disabled = false;
+  if (reply?.ok) {
+    setStatus(`Saved “${reply.checkpoint.anchor.slice(0, 60)}”.`, 'ok');
+    await refresh(false);
+  } else {
+    setStatus(reply?.error ?? 'Could not save.', 'warn');
+  }
+}
+
+async function refresh(showResult = true): Promise<void> {
+  const stored = await chrome.storage.local.get(['dwf:goal', 'dwf:lastResult', 'dwf:screenshot']);
+  goalInput.value = stored['dwf:goal'] ?? 'AP Chem unit 4';
+  shot.checked = stored['dwf:screenshot'] === true;
   let reply: any = null;
   try {
     reply = await chrome.runtime.sendMessage({ type: 'DWF_LIST_FROM_POPUP' });
@@ -46,56 +96,50 @@ async function refresh(): Promise<void> {
     reply = null;
   }
   const checkpoints: PopupCheckpoint[] = reply?.checkpoints ?? [];
-  if (!checkpoints.length) {
-    list.innerHTML = '<li class="empty">No checkpoints yet. Open a worksheet and save your spot.</li>';
-    return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  latest = checkpoints[0] ?? null;
+  onSavedPage = !!latest && !!tab?.url && pageOf(tab.url) === pageOf(latest.url);
+
+  if (latest) {
+    latestBox.hidden = false;
+    $('latest-anchor').textContent = latest.anchor;
+    $('latest-meta').textContent = `${latest.title} · saved ${relative(latest.createdAt)}`;
+  } else {
+    latestBox.hidden = true;
   }
-  list.innerHTML = checkpoints
-    .slice(0, 8)
-    .map(
-      (checkpoint) =>
-        `<li><div class="grow"><strong>${checkpoint.anchor.replace(/</g, '&lt;').slice(0, 76)}</strong>` +
-        `<span>${checkpoint.title.replace(/</g, '&lt;').slice(0, 58)} · ${relative(checkpoint.createdAt)}</span></div>` +
-        `<button class="restore" data-id="${checkpoint.id}">Restore</button></li>`,
-    )
-    .join('');
-  list.querySelectorAll<HTMLButtonElement>('.restore').forEach((button) => {
-    button.addEventListener('click', async () => {
-      button.disabled = true;
-      setStatus('Opening the fragment and checking the passage…');
-      const restored = await chrome.runtime.sendMessage({ type: 'DWF_RESTORE_FROM_POPUP', id: button.dataset.id });
-      setStatus(restored?.ok ? 'Restore tab opened; verification is running.' : restored?.error ?? 'Restore failed.', restored?.ok ? 'ok' : 'warn');
-    });
-  });
+  // Elsewhere with a saved place → the main action is returning to it.
+  if (latest && !onSavedPage) {
+    primary.textContent = `Return to ${latest.problemId}`;
+    secondary.hidden = false;
+  } else {
+    primary.textContent = 'Save this passage';
+    secondary.hidden = true;
+  }
+
+  const rest = checkpoints.slice(1, 9);
+  list.innerHTML = rest.length
+    ? rest
+        .map(
+          (c) =>
+            `<li><div class="grow"><strong>${esc(c.anchor.slice(0, 80))}</strong><span>${esc(c.title.slice(0, 60))} · ${relative(c.createdAt)}</span></div>` +
+            `<button class="restore" data-id="${esc(c.id)}">Return</button></li>`,
+        )
+        .join('')
+    : '<li class="empty">No other saved places.</li>';
+  list.querySelectorAll<HTMLButtonElement>('.restore').forEach((b) => b.addEventListener('click', () => void restore(b.dataset.id ?? '')));
+  if (showResult) describeResult(stored['dwf:lastResult']);
 }
 
-saveButton.addEventListener('click', async () => {
-  const goal = goalInput.value.trim() || 'AP Chem unit 4';
-  await chrome.storage.local.set({ 'dwf:goal': goal });
-  saveButton.disabled = true;
-  setStatus('Saving the visible passage…');
-  const reply = await chrome.runtime.sendMessage({ type: 'DWF_SAVE_CHECKPOINT_FROM_POPUP', goal });
-  saveButton.disabled = false;
-  if (reply?.ok) {
-    setStatus(`Saved “${reply.checkpoint.anchor.slice(0, 60)}”.`, 'ok');
-    await refresh();
-  } else {
-    setStatus(reply?.error ?? 'Could not save.', 'warn');
-  }
+primary.addEventListener('click', () => {
+  if (latest && !onSavedPage) void restore(latest.id);
+  else void save();
 });
-
-copyId.addEventListener('click', async () => {
-  const id = chrome.runtime.id;
-  try {
-    await navigator.clipboard.writeText(id);
-    copyId.textContent = 'Copied';
-  } catch {
-    copyId.textContent = id;
-  }
-});
-
-goalInput.addEventListener('change', () => {
-  void chrome.storage.local.set({ 'dwf:goal': goalInput.value.trim() });
+secondary.addEventListener('click', () => void save());
+shot.addEventListener('change', () => void chrome.storage.local.set({ 'dwf:screenshot': shot.checked }));
+goalInput.addEventListener('change', () => void chrome.storage.local.set({ 'dwf:goal': goalInput.value.trim() }));
+$('ext-id').textContent = chrome.runtime.id;
+chrome.storage.onChanged.addListener((changes: any) => {
+  if (changes['dwf:lastResult']) describeResult(changes['dwf:lastResult'].newValue);
 });
 
 void refresh();

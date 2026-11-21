@@ -1,5 +1,5 @@
 import type { Correction, CorrectionVote } from './types';
-import { cosine } from './embed';
+import { cosine, EMBEDDING_VERSION } from './embed';
 
 export interface Neighbor {
   correction: Correction;
@@ -13,15 +13,27 @@ export function nearestCorrections(
   k: number,
   maxDistance: number,
 ): Neighbor[] {
-  return corrections
-    .filter((c) => c.goal === goal)
+  // One vote per source moment: repeated corrections of the same trace entry
+  // count once (latest wins). Lab corrections are explicit simulations and
+  // keep their own ids. Corrections from another embedder version are ignored.
+  const latest = new Map<string, Correction>();
+  for (const c of corrections) {
+    if (c.goal !== goal || (c.featureVersion ?? 1) !== EMBEDDING_VERSION) continue;
+    const key = c.lab ? c.id : (c.traceId ?? c.id);
+    const prev = latest.get(key);
+    if (!prev || c.createdAt >= prev.createdAt) latest.set(key, c);
+  }
+  return [...latest.values()]
     .map((c) => ({ correction: c, distance: 1 - cosine(embedding, c.embedding) }))
     .filter((n) => Number.isFinite(n.distance) && n.distance <= maxDistance)
     .sort((a, b) => a.distance - b.distance)
     .slice(0, k);
 }
 
-/** 4 of 5 same-label neighbors override; a 3–2 split forces UNCERTAIN. */
+/**
+ * 4 of 5 same-label neighbors override; a 3–2 split forces UNCERTAIN. The
+ * decision uses raw counts; the distance-weighted totals are diagnostic only.
+ */
 export function correctionVote(
   corrections: Correction[],
   embedding: number[],

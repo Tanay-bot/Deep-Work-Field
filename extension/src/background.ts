@@ -85,7 +85,7 @@ async function activeTab(): Promise<any> {
   return tab;
 }
 
-async function captureOnTab(tab: any, goal: string): Promise<{ ok: boolean; checkpoint?: Checkpoint; error?: string }> {
+async function captureOnTab(tab: any, goal: string, screenshot = false): Promise<{ ok: boolean; checkpoint?: Checkpoint; error?: string }> {
   if (!tab?.id) return { ok: false, error: 'No active tab.' };
   let reply: any = null;
   try {
@@ -99,9 +99,10 @@ async function captureOnTab(tab: any, goal: string): Promise<{ ok: boolean; chec
   const checkpoint: Checkpoint = reply.checkpoint;
   // The frame must show the tab that was captured. If the user switched tabs
   // in the meantime, skip it rather than save a picture of something else.
+  // Screenshots are opt-in (popup checkbox).
   try {
-    const now = await activeTab();
-    if (now?.id === tab.id && now?.windowId === tab.windowId) {
+    const now = screenshot ? await activeTab() : null;
+    if (now && now.id === tab.id && now.windowId === tab.windowId) {
       checkpoint.savedFrame = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 55 });
     }
   } catch {
@@ -231,7 +232,7 @@ chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (
   }
   if (message?.type === 'DWF_SAVE_CHECKPOINT_FROM_POPUP') {
     void activeTab()
-      .then((tab) => captureOnTab(tab, String(message.goal ?? '')))
+      .then((tab) => captureOnTab(tab, String(message.goal ?? ''), message.screenshot === true))
       .then(sendResponse)
       .catch((error) => sendResponse({ ok: false, error: String(error) }));
     return true;

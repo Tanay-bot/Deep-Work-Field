@@ -8,23 +8,31 @@
 </head>
 <body>
 <header>
-  <div class="brand"><span>✦</span> Deep Work Field</div>
-  <button id="copy-id" title="Copy this extension ID for the web app settings">Copy ID</button>
+  <div class="brand"><i aria-hidden="true"></i>Deep Work <em>Field</em></div>
 </header>
 <main>
-  <label class="field">Session goal
-    <input id="goal" type="text" value="AP Chem unit 4" autocomplete="off" />
-  </label>
-  <button id="save" class="primary" type="button">Save checkpoint on this tab</button>
-  <p id="status" class="status" data-kind="muted">Select the worksheet passage you want to return to, then save.</p>
-  <div class="divider"></div>
-  <section>
-    <h2>Checkpoints</h2>
-    <ul id="list"><li class="empty">Loading…</li></ul>
+  <section id="latest" class="latest" hidden>
+    <p class="kicker">Your place</p>
+    <p id="latest-anchor" class="anchor"></p>
+    <p id="latest-meta" class="meta"></p>
   </section>
-  <div class="divider"></div>
-  <p id="result" class="status" data-kind="muted">No restore checked yet.</p>
-  <p class="fine">Restores use a scroll-to-text fragment with prefix and suffix context. The tab is verified by the content script; if it fails you get “Saved context only”, never a false success.</p>
+  <button id="primary" class="primary" type="button">Save this passage</button>
+  <button id="secondary" class="ghost" type="button" hidden>Save this passage instead</button>
+  <p id="status" class="status" data-kind="muted" role="status" aria-live="polite">Select the problem’s heading on the page, then save.</p>
+  <label class="check"><input id="shot" type="checkbox" /> Also save a screenshot of this tab</label>
+
+  <details id="more">
+    <summary>Other saved places</summary>
+    <ul id="list"><li class="empty">Loading…</li></ul>
+  </details>
+  <details>
+    <summary>Session &amp; setup</summary>
+    <label class="field">Session goal
+      <input id="goal" type="text" value="AP Chem unit 4" autocomplete="off" />
+    </label>
+    <p class="fine">Extension ID <code id="ext-id"></code> (fixed; the web app connects on its own).</p>
+  </details>
+  <p class="fine">Restores open a scroll-to-text link and then check the passage on the page. If the check fails you see “Saved context only”, never a false success.</p>
 </main>
 <script src="popup.js"></script>
 </body>

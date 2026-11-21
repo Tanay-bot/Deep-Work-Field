@@ -234,8 +234,8 @@
               <button id="resume-copy" class="btn small ghost" type="button">Copy fragment link</button>
               <span class="micro">Opens with <code>chrome.tabs</code>-style navigation, not a hash write.</span>
             </div>
-            <div id="verify-status" class="verify-status" hidden></div>
-            <div id="first-edit-status" class="first-edit" hidden></div>
+            <div id="verify-status" class="verify-status" role="status" aria-live="polite" hidden></div>
+            <div id="first-edit-status" class="first-edit" role="status" aria-live="polite" hidden></div>
           </div>
         </div>
 
@@ -261,7 +261,7 @@
             <a class="btn small ghost" href="/demo/worksheet-a.html" target="_blank" rel="noopener">Open worksheet manually</a>
             <button id="live-btn" class="btn small" type="button" disabled title="Needs the Chrome extension">Use my real screen</button>
           </div>
-          <p id="live-status" class="micro">Live mode reads only the visible text of your active tab, through the extension, once a second. Nothing leaves this device.</p>
+          <p id="live-status" class="micro" aria-live="off">Live mode reads only the visible text of your active tab, through the extension, once a second. Nothing leaves this device.</p>
         </div>
 
         <div class="card trace-card">
@@ -410,13 +410,13 @@
 <dialog id="unsupported-dialog" class="dialog">
   <div class="dialog-body">
     <div class="dialog-head">
-      <div><p class="section-kicker">Third-party page</p><h2 id="unsupported-title">The hosted demo cannot verify here</h2></div>
+      <div><p class="section-kicker">Third-party page</p><h2 id="unsupported-title">This page needs the Chrome extension</h2></div>
       <button class="icon-btn" data-close="unsupported-dialog" aria-label="Close">×</button>
     </div>
     <p id="unsupported-body" class="muted"></p>
     <div class="saved-context-box">
-      <span class="pill tiny">Saved context only</span>
-      <p class="small">No verified checkpoint exists for this page. The app will not claim a restore it cannot check.</p>
+      <span class="pill tiny">No checkpoint yet</span>
+      <p id="unsupported-next" class="small">Nothing has been saved for this page, so there is nothing to restore or verify yet.</p>
       <code id="unsupported-url" class="url"></code>
     </div>
     <div class="dialog-actions">
