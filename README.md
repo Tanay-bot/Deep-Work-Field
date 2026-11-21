@@ -137,8 +137,11 @@ ablation-style record of decisions logged while corrections were active, not a c
 - **Fixed extension ID**: `manifest.json` carries a public `key`, so every unpacked install has the
   ID `ebcoijhkmohgagkgkaaafhjkffcjcchn` and the web app connects without pasting anything. The site's
   origin must still be listed in `externally_connectable`.
-- **Extension → fusion loop**: the extension performs DOM capture, fragment restore, verification and
-  first-edit detection. It does not yet stream its signals into the hosted app’s fusion loop.
+- **Live screen path (shipped)**: with the extension installed, **Use my real screen** opens a port
+  to the extension, which streams the *visible* text of the active tab once a second (only while a
+  session listens, only from the visible tab; restricted pages are reported by title). The web app
+  scores it with goal-term coverage plus "this is the page you saved" and runs the same focus engine
+  and trace. Screen-only mode nudges on real tabs; full fusion still needs face cues.
 - **Data**: no accounts, backend, analytics, or network calls for detection. The hosted page does use a
   service worker for offline assets.
 

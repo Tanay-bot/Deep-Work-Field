@@ -166,7 +166,61 @@ function capture(goal: string, sendResponse: (reply: any) => void): void {
   sendResponse({ ok: true, checkpoint });
 }
 
+/* ---------- Live screen stream (only while a session is listening) ------- */
+let streamTimer = 0;
+
+/** Text of the elements currently inside the viewport, in document order. */
+function visibleText(limit = 1600): string {
+  const out: string[] = [];
+  let length = 0;
+  const walker = document.createTreeWalker(document.body ?? document.documentElement, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  const seen = new Set<Element>();
+  while ((node = walker.nextNode()) && length < limit) {
+    const parent = (node as Text).parentElement;
+    if (!parent || seen.has(parent) || !(node as Text).data.trim()) continue;
+    if (parent.closest('script,style,noscript,template,svg')) continue;
+    const r = parent.getBoundingClientRect();
+    if (r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth || r.height === 0) continue;
+    seen.add(parent);
+    const t = (node as Text).data.replace(/\s+/g, ' ').trim();
+    out.push(t);
+    length += t.length + 1;
+  }
+  return out.join(' ').slice(0, limit);
+}
+
+function sendScreen(): void {
+  if (document.visibilityState !== 'visible') return;
+  try {
+    chrome.runtime.sendMessage({ type: 'DWF_SCREEN', url: location.href, title: document.title, text: visibleText() });
+  } catch {
+    stopStream();
+  }
+}
+
+function startStream(): void {
+  if (streamTimer) return;
+  sendScreen();
+  streamTimer = window.setInterval(sendScreen, 1000);
+}
+
+function stopStream(): void {
+  clearInterval(streamTimer);
+  streamTimer = 0;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') stopStream();
+});
+
 chrome.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: (reply: any) => void) => {
+  if (message?.type === 'DWF_STREAM') {
+    if (message.on) startStream();
+    else stopStream();
+    sendResponse({ ok: true });
+    return false;
+  }
   if (message?.type === 'DWF_CAPTURE') {
     capture(String(message.goal ?? ''), sendResponse);
     return false;

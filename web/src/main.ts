@@ -5,6 +5,7 @@ import { buildTextFragmentUrl } from '../../shared/src/fragments';
 import { verifyCheckpointAsync } from '../../shared/src/verify';
 import { captureCheckpointFromElement, newId, pickAnchorElement } from '../../shared/src/checkpoint';
 import { embedText } from '../../shared/src/embed';
+import { matchScreen, type ScreenSample } from '../../shared/src/screen';
 import { correctionVote } from '../../shared/src/knn';
 import { FocusEngine, type EngineDecision } from '../../shared/src/engine';
 import './lib/fx';
@@ -113,6 +114,8 @@ const state = {
   voice: new Voice(),
   galaxy: null as Galaxy | null,
   extensionConnected: false,
+  livePort: null as { postMessage: (m: unknown) => void; disconnect: () => void; onMessage: any; onDisconnect: any } | null,
+  liveFace: null as FaceCue | null,
   lastStateLog: '' as FocusState | '',
 };
 
@@ -122,6 +125,8 @@ const dom = {
   session: $('session'),
   modeSelect: $('mode-select') as HTMLSelectElement,
   extensionStatus: $('extension-status'),
+  liveBtn: $('live-btn') as HTMLButtonElement,
+  liveStatus: $('live-status'),
   sessionGoal: $('session-goal'),
   statePill: $('state-pill'),
   modePill: $('mode-pill'),
@@ -464,6 +469,7 @@ function scenarioTick(): void {
 function startScenario(): void {
   if (!state.engine) return;
   stopScenario();
+  stopLive(true);
   try {
     state.worksheet?.close();
   } catch {
@@ -495,6 +501,90 @@ function stopScenario(): void {
     state.scenarioTimer = 0;
   }
   dom.driftStage.hidden = true;
+}
+
+/* ---------- Live mode: the real active tab, via the extension ------------- */
+function startLive(): void {
+  const chromeApi = (globalThis as unknown as { chrome?: any }).chrome;
+  if (!state.engine || !state.extensionConnected || !chromeApi?.runtime?.connect) {
+    toast('Live mode needs the Chrome extension. Use “Get the extension”.', 'warn');
+    return;
+  }
+  stopScenario();
+  stopLive(true);
+  let port: any;
+  try {
+    port = chromeApi.runtime.connect(extensionId(), { name: 'dwf-screen' });
+  } catch {
+    toast('Could not open the live connection to the extension.', 'warn');
+    return;
+  }
+  state.livePort = port;
+  state.engine.resetRun(Date.now());
+  state.trace = [];
+  state.selectedTrace = -1;
+  state.lastStateLog = '';
+  state.study.log('mode', `${state.mode}; live`);
+  dom.nudge.hidden = true;
+  port.onMessage.addListener((message: ScreenSample & { type: string }) => {
+    if (message?.type === 'screen') liveSample(message);
+  });
+  port.onDisconnect.addListener(() => {
+    if (state.livePort === port) stopLive(false, 'The extension disconnected (it may have been reloaded or disabled).');
+  });
+  dom.liveBtn.textContent = 'Stop live';
+  dom.stepDrift.disabled = true;
+  dom.demoStep.textContent =
+    state.mode === 'full' && !state.liveFace
+      ? 'Live: reading your active tab. Full fusion also needs face cues, so without the camera it will abstain; switch Mode to Screen-only for live nudges.'
+      : 'Live: reading your active tab through the extension. Switch to another tab to see the field react; come back to the worksheet to recover.';
+  dom.liveStatus.textContent = 'Live · waiting for the first sample from your active tab…';
+  renderTrace();
+}
+
+function stopLive(silent = false, reason = ''): void {
+  const port = state.livePort;
+  state.livePort = null;
+  try {
+    port?.disconnect();
+  } catch {
+    /* already closed */
+  }
+  dom.liveBtn.textContent = 'Use my real screen';
+  dom.stepDrift.disabled = !state.checkpoint;
+  if (!silent && port) {
+    dom.liveStatus.textContent = reason || 'Live mode stopped.';
+    if (reason) toast(reason, 'warn');
+  }
+}
+
+function liveSample(sample: ScreenSample): void {
+  if (!state.engine || !state.sessionId) return;
+  let host = '';
+  try {
+    const url = new URL(sample.url);
+    host = url.hostname || url.protocol.replace(':', '');
+    if (url.origin === location.origin && !url.pathname.startsWith('/demo/')) {
+      dom.liveStatus.textContent = 'Live · you are looking at Deep Work Field itself; not scored.';
+      return;
+    }
+  } catch {
+    host = 'unknown page';
+  }
+  const match = matchScreen(state.goal, sample, state.checkpoint);
+  const screenText = `${sample.title}${sample.text ? ' — ' + sample.text.slice(0, 240) : ''}`;
+  const face = state.liveFace;
+  state.nudgeText = spokenCheckpoint(state.checkpoint);
+  const decision = state.engine.update({
+    t: Date.now(),
+    screenText,
+    onTaskSimilarity: match.sim,
+    embedding: embedText(`${sample.title} ${sample.text}`),
+    face,
+    source: 'dom',
+  });
+  appendDecision(decision, { screenText, sim: match.sim, face, source: 'dom' }, `Live tab ${host}: ${match.reason}.`);
+  dom.liveStatus.textContent = `Live · ${host} · ${match.reason} · ${decision.state}`;
 }
 
 function beginSession(): void {
@@ -1122,6 +1212,17 @@ async function stopStudy(fromTrackEnd = false): Promise<void> {
   }
 }
 
+function setupLive(): void {
+  dom.liveBtn.addEventListener('click', () => {
+    if (state.livePort) stopLive();
+    else {
+      beginSession();
+      showSession();
+      startLive();
+    }
+  });
+}
+
 function setupStudy(): void {
   dom.studyStart.addEventListener('click', () => void startStudy());
   dom.studyStop.addEventListener('click', () => void stopStudy());
@@ -1358,6 +1459,8 @@ function setExtensionStatus(connected: boolean): void {
   state.extensionConnected = connected;
   dom.extensionStatus.textContent = connected ? 'Extension: connected' : 'Extension: not linked';
   if (connected) dom.extResult.textContent = 'Connected. The extension can save and restore checkpoints on other sites.';
+  dom.liveBtn.disabled = !connected;
+  dom.liveBtn.title = connected ? 'Score your real active tab, through the extension' : 'Needs the Chrome extension';
   dom.extensionStatus.title = connected
     ? 'External messaging bridge answered.'
     : 'Install the extension (Get the extension); the hosted demo works without it.';
@@ -1401,6 +1504,7 @@ function setup(): void {
   setupSettings();
   setupReplay();
   setupStudy();
+  setupLive();
   setupCapture();
   setupLanding();
   setupDialogs();

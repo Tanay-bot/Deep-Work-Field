@@ -89,4 +89,31 @@ for (const p of context.pages()) {
   if (!ok) fail(`tab landed wrong: ${JSON.stringify(where)}`);
   else console.log(`✓ restore tab shows Part II 4b (top ${where.problemTop}px), answer key offscreen (${where.keyTop}px)`);
 }
+// Live screen path: the real active tab drives the focus engine.
+{
+  const app2 = await context.newPage();
+  await app2.goto(`${base}/`, { waitUntil: 'load' });
+  await app2.waitForFunction(() => !document.getElementById('live-btn').disabled, null, { timeout: 8000 }).catch(() => {});
+  await app2.evaluate(() => {
+    const sel = document.getElementById('mode-select');
+    sel.value = 'screen-only';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    document.getElementById('live-btn').click();
+  });
+  const work = await context.newPage();
+  await work.goto(`${base}/demo/worksheet-a.html`);
+  await work.bringToFront();
+  await work.waitForTimeout(3500);
+  const onTask = await app2.textContent('#live-status');
+  if (!/FOCUSED/.test(onTask ?? '')) fail(`live worksheet tab not FOCUSED: ${onTask}`);
+  else console.log(`✓ live: worksheet tab → ${onTask.trim()}`);
+  await context.route('https://distraction.test/**', (r) => r.fulfill({ contentType: 'text/html', body: '<title>Minecraft parkour compilation</title><h1>Best Minecraft parkour jumps 2026</h1><p>Funny moments, no commentary.</p>' }));
+  const fun = await context.newPage();
+  await fun.goto('https://distraction.test/video');
+  await fun.bringToFront();
+  const nudged = await app2.waitForFunction(() => !document.getElementById('nudge').hidden, null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const drift = await app2.textContent('#live-status');
+  if (!nudged) fail(`live distraction tab did not nudge: ${drift}`);
+  else console.log(`✓ live: distraction tab → nudge shown (${drift.trim()})`);
+}
 await context.close();

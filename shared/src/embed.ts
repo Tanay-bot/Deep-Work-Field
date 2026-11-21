@@ -23,6 +23,12 @@ export const EMBEDDING_DIMS = 192;
 
 const SHORT_STOPWORDS = new Set(['an', 'as', 'at', 'be', 'by', 'do', 'go', 'he', 'if', 'in', 'is', 'it', 'me', 'my', 'no', 'of', 'oh', 'ok', 'on', 'or', 'so', 'to', 'up', 'us', 'we']);
 
+/** Content terms of a text: lowercase alphanumerics, 2+ chars, no function words. */
+export function contentTerms(text: string): string[] {
+  const tokens = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  return tokens.filter((t) => t.length >= 2 && !STOPWORDS.has(t) && !SHORT_STOPWORDS.has(t));
+}
+
 export function embedText(text: string, dims = EMBEDDING_DIMS): number[] {
   const vec = new Array<number>(dims).fill(0);
   const tokens = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];

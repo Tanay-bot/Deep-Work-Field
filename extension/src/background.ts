@@ -176,6 +176,12 @@ chrome.runtime.onMessageExternal.addListener((message: any, sender: any, sendRes
 });
 
 chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (reply: any) => void) => {
+  if (message?.type === 'DWF_SCREEN') {
+    if (sender.tab?.id === streamingTab && ports.size) {
+      post({ url: String(message.url ?? ''), title: String(message.title ?? ''), text: String(message.text ?? '').slice(0, 1600), restricted: false });
+    }
+    return false;
+  }
   if (message?.type === 'DWF_GET_PENDING') {
     void getPending(sender.tab?.id)
       .then((pending) => sendResponse({ pending }))
@@ -243,6 +249,60 @@ chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (
     return true;
   }
   return false;
+});
+
+/* ---------- Live screen stream to the web app ---------------------------- */
+// The web app opens a port (externally_connectable). While at least one port
+// is open, the visible active tab streams its on-screen text once a second.
+// Pages the content script cannot run on are reported as restricted, by title.
+const ports = new Set<any>();
+let streamingTab: number | null = null;
+
+function post(sample: Record<string, unknown>): void {
+  for (const port of ports) {
+    try {
+      port.postMessage({ type: 'screen', t: Date.now(), ...sample });
+    } catch {
+      ports.delete(port);
+    }
+  }
+}
+
+async function streamActiveTab(): Promise<void> {
+  if (!ports.size) return;
+  const tab = await activeTab().catch(() => null);
+  if (!tab?.id) return;
+  if (streamingTab !== null && streamingTab !== tab.id) {
+    chrome.tabs.sendMessage(streamingTab, { type: 'DWF_STREAM', on: false }).catch(() => undefined);
+  }
+  streamingTab = tab.id;
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: 'DWF_STREAM', on: true });
+  } catch {
+    // chrome://, the Web Store, Chrome's PDF viewer: no content script.
+    post({ url: tab.url ?? tab.pendingUrl ?? '', title: tab.title ?? '', text: '', restricted: true });
+  }
+}
+
+function stopAllStreams(): void {
+  if (streamingTab !== null) chrome.tabs.sendMessage(streamingTab, { type: 'DWF_STREAM', on: false }).catch(() => undefined);
+  streamingTab = null;
+}
+
+chrome.runtime.onConnectExternal.addListener((port: any) => {
+  if (port.name !== 'dwf-screen') return;
+  ports.add(port);
+  port.onDisconnect.addListener(() => {
+    ports.delete(port);
+    if (!ports.size) stopAllStreams();
+  });
+  void streamActiveTab();
+});
+
+chrome.tabs.onActivated.addListener(() => void streamActiveTab());
+chrome.windows.onFocusChanged.addListener(() => void streamActiveTab());
+chrome.tabs.onUpdated.addListener((tabId: number, info: any) => {
+  if (info.status === 'complete' && tabId === streamingTab) void streamActiveTab();
 });
 
 chrome.tabs.onRemoved.addListener((tabId: number) => {
