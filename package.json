@@ -1,0 +1,25 @@
+{
+  "name": "deep-work-field",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "On-device study companion: drift detection, verified restore, local corrections.",
+  "scripts": {
+    "dev": "vite --config web/vite.config.ts --host 0.0.0.0 --port 3000",
+    "build": "tsc -p tsconfig.json --noEmit && vite build --config web/vite.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview --config web/vite.config.ts --host 0.0.0.0 --port 4173",
+    "build:extension": "node extension/build.mjs",
+    "eval": "node tools/results.mjs"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/three": "^0.169.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}

@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Deep Work Field: on-device drift detection, verified restore to the exact problem, and local correction memory." />
+<title>Deep Work Field — find the problem you left</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='3' fill='%23f0b429'/%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%23a9c8ff' stroke-width='1.2' stroke-dasharray='2 5'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+<canvas id="galaxy" aria-hidden="true"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Deep Work Field home">
+    <span class="brand-mark" aria-hidden="true">✦</span>
+    <span>Deep Work Field</span>
+  </a>
+  <nav class="topnav" aria-label="Session controls">
+    <label class="mode-picker">
+      <span>Mode</span>
+      <select id="mode-select">
+        <option value="resume-only">Resume-only</option>
+        <option value="screen-only">Screen-only nudges</option>
+        <option value="full" selected>Full fusion</option>
+      </select>
+    </label>
+    <span id="extension-status" class="pill tiny" title="Extension bridge status">Extension: checking</span>
+    <button id="settings-btn" class="btn small ghost" type="button">Settings</button>
+  </nav>
+</header>
+
+<main>
+  <section id="landing">
+    <div class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="live-dot"></span> On-device · no accounts · no cloud AI</p>
+        <h1>Your study session drifted.<br /><em>One click</em> takes you back to problem&nbsp;4b.</h1>
+        <p class="lede">
+          Deep Work Field notices when the worksheet stops being the thing on your screen, speaks the exact
+          problem you left, and reopens it — verified against the surrounding passage, even after the page
+          reflowed or the tab was closed.
+        </p>
+        <div class="hero-actions">
+          <button id="try-btn" class="btn primary" type="button">Try it now — no install</button>
+          <button id="extension-btn" class="btn ghost" type="button">Get the extension</button>
+        </div>
+        <p class="micro">
+          The zero-install demo runs a labelled, scripted drift signal. This build ships the checkpoint,
+          verified restore, fusion engine and study mode; face and ML adapters are stubs, and the hosted
+          app never asks for your camera.
+        </p>
+        <dl class="hero-stats">
+          <div><dt>Restore check</dt><dd>prefix + suffix + viewport</dd></div>
+          <div><dt>Storage</dt><dd>IndexedDB, never uploaded</dd></div>
+          <div><dt>Corrections</dt><dd>4-of-5 supermajority</dd></div>
+        </dl>
+      </div>
+      <div class="hero-panel" aria-hidden="true">
+        <div class="mock-window">
+          <div class="mock-bar"><span></span><span></span><span></span><em>worksheet · problem 4b</em></div>
+          <div class="mock-sheet">
+            <p class="mock-kicker">PART II — LIMITING REAGENTS</p>
+            <h3>4b. Limiting reagent</h3>
+            <p>A 10.0 g sample of aluminum reacts with 10.0 g of chlorine gas…</p>
+            <div class="mock-line"></div><div class="mock-line short"></div>
+            <div class="mock-box"><span>theoretical yield</span></div>
+          </div>
+          <div class="mock-nudge"><span class="mock-wave"></span>“You were on 4b, limiting reagent.”</div>
+          <div class="mock-trace">
+            <span class="dot ok"></span> FOCUSED
+            <span class="dot warn"></span> DRIFTING 3.2s
+            <span class="dot quiet"></span> UNCERTAIN
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section class="how">
+      <p class="section-kicker">The loop</p>
+      <ol class="how-grid">
+        <li><span>01</span><h3>Save the passage</h3><p>URL, problem id, the anchor text, and the text immediately before and after it.</p></li>
+        <li><span>02</span><h3>Notice the drift</h3><p>Smoothed screen and face cues. On-task screen with head down counts as writing, not drift.</p></li>
+        <li><span>03</span><h3>Resume, verified</h3><p>The fragment link lands on the twin-safe passage; the check fails honestly if it cannot.</p></li>
+      </ol>
+    </section>
+
+    <section class="grid-3">
+      <article class="panel">
+        <p class="section-kicker">Modes</p>
+        <h2>Three modes, one checkpoint core</h2>
+        <ul class="mode-list">
+          <li><strong>Resume-only</strong><span>Checkpoints and verified restore. No detection.</span></li>
+          <li><strong>Screen-only nudges</strong><span>On-device screen text decides focus. No camera.</span></li>
+          <li><strong>Full fusion</strong><span>Screen + face cues (face adapter stubbed here), correction memory, verified restore.</span></li>
+        </ul>
+        <p class="micro">All three call the same checkpoint and restore code path.</p>
+      </article>
+      <article class="panel">
+        <p class="section-kicker">Supported content</p>
+        <h2>What restores where</h2>
+        <table class="support">
+          <thead><tr><th>Content</th><th>Hosted demo</th><th>Extension</th></tr></thead>
+          <tbody>
+            <tr><td>Built-in worksheets</td><td class="yes">Verified</td><td class="yes">Verified</td></tr>
+            <tr><td>Uploaded HTML</td><td class="yes">Verified</td><td class="yes">Verified</td></tr>
+            <tr><td>Pasted third-party URL</td><td class="no">Install screen</td><td class="yes">Verified</td></tr>
+            <tr><td>Google Docs</td><td class="no">—</td><td class="warn">Saved context only</td></tr>
+            <tr><td>Web PDFs</td><td class="no">—</td><td class="no">Not shipped</td></tr>
+          </tbody>
+        </table>
+        <p class="micro">Text fragments do not work inside Google Docs, so the UI never claims a verified restore there.</p>
+      </article>
+      <article class="panel">
+        <p class="section-kicker">Install</p>
+        <h2>Extension in three steps</h2>
+        <ol class="install-steps">
+          <li>Build the extension: <code>npm run build:extension</code>.</li>
+          <li>Chrome → <code>chrome://extensions</code> → Developer mode → Load unpacked → <code>extension/dist</code>.</li>
+          <li>Copy the extension ID into the extension setup dialog here so the page can talk to it.</li>
+        </ol>
+        <p class="micro">The web app ↔ extension bridge uses <code>chrome.runtime.sendMessage</code> with <code>externally_connectable</code>, not page injection.</p>
+        <button id="extension-btn-2" class="btn small" type="button">Open setup steps</button>
+      </article>
+    </section>
+
+    <section class="url-check panel">
+      <div>
+        <p class="section-kicker">Hard case</p>
+        <h2>Paste an assignment URL</h2>
+        <p class="muted">The hosted page cannot read another site because of browser same-origin rules. Watch what it says instead of pretending.</p>
+      </div>
+      <div class="url-controls">
+        <form id="url-form">
+          <label for="url-input" class="micro">Assignment URL</label>
+          <div class="field-row">
+            <input id="url-input" type="url" placeholder="https://classroom.example.com/chem-unit-4" autocomplete="off" />
+            <button class="btn small" type="submit">Open</button>
+          </div>
+        </form>
+        <div class="upload-row">
+          <label class="btn small ghost" for="upload-input">Upload an HTML worksheet</label>
+          <input id="upload-input" type="file" accept=".html,.htm,text/html" hidden />
+          <span class="micro">Processed locally in this tab. Never uploaded.</span>
+        </div>
+      </div>
+    </section>
+    <footer class="site-footer">
+      <span>Deep Work Field · TripleH 2026</span>
+      <span>Thresholds frozen for evaluation · no analytics · no backend</span>
+    </footer>
+  </section>
+
+  <section id="session" hidden>
+    <div class="session-head">
+      <div>
+        <p class="eyebrow">Session</p>
+        <h1 id="session-goal">—</h1>
+      </div>
+      <div class="session-badges">
+        <span id="mode-pill" class="pill tiny">Full fusion</span>
+        <span id="freeze-pill" class="pill tiny" hidden>Thresholds frozen</span>
+        <span id="state-pill" class="state-pill" data-state="FOCUSED">FOCUSED</span>
+        <span id="session-timer" class="pill tiny">00:00</span>
+      </div>
+    </div>
+
+    <div class="session-grid">
+      <div class="main-col">
+        <div id="nudge" class="nudge" role="status" hidden>
+          <div class="nudge-copy">
+            <p class="section-kicker">Voice nudge</p>
+            <p id="nudge-text">You were on 4b, limiting reagent.</p>
+          </div>
+          <div class="nudge-actions">
+            <button id="resume-nudge" class="btn primary small" type="button">Resume to 4b</button>
+            <button id="nudge-dismiss" class="btn small ghost" type="button">Not now</button>
+          </div>
+        </div>
+
+        <div class="card checkpoint-card">
+          <div class="card-head">
+            <p class="section-kicker">Checkpoint</p>
+            <span class="pill tiny" id="checkpoint-age">none saved</span>
+          </div>
+          <div id="checkpoint-empty" class="empty">
+            <p>No checkpoint yet. Open the demo worksheet and save problem 4b.</p>
+            <button id="step-open" class="btn small" type="button">Open worksheet &amp; save 4b</button>
+          </div>
+          <div id="checkpoint-body" hidden>
+            <h2 id="cp-problem">4b</h2>
+            <p id="cp-title" class="muted small"></p>
+            <blockquote id="cp-anchor" class="anchor"></blockquote>
+            <p id="cp-context" class="context"></p>
+            <div class="row wrap">
+              <button id="resume-btn" class="btn primary" type="button">Resume verified</button>
+              <button id="resume-copy" class="btn small ghost" type="button">Copy fragment link</button>
+              <span class="micro">Opens with <code>chrome.tabs</code>-style navigation, not a hash write.</span>
+            </div>
+            <div id="verify-status" class="verify-status" hidden></div>
+            <div id="first-edit-status" class="first-edit" hidden></div>
+          </div>
+        </div>
+
+        <div id="drift-stage" class="card drift-stage" hidden>
+          <div class="distraction" aria-hidden="true">
+            <div class="blocks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="distraction-label">simulated distraction · “Minecraft parkour compilation”</div>
+          </div>
+          <div class="distraction-copy">
+            <p class="section-kicker">Scripted demo signals</p>
+            <p>Head up, screen similarity drops below the off-task threshold. The galaxy scatters; the nudge waits for the full 3-second hold.</p>
+          </div>
+        </div>
+
+        <div class="card demo-controls" id="demo-controls">
+          <div class="card-head">
+            <p class="section-kicker">Demo steps</p>
+            <span class="pill tiny" id="demo-badge">no install</span>
+          </div>
+          <p id="demo-step">Try it now opens the worksheet, saves problem 4b, and walks the drift → nudge → resume loop.</p>
+          <div class="row wrap">
+            <button id="step-drift" class="btn small" type="button" disabled>Close tab &amp; simulate drift</button>
+            <a class="btn small ghost" href="/demo/worksheet-a.html" target="_blank" rel="noopener">Open worksheet manually</a>
+          </div>
+        </div>
+
+        <div class="card trace-card">
+          <div class="card-head">
+            <p class="section-kicker">Decision trace</p>
+            <span class="pill tiny" id="trace-count">0 entries</span>
+          </div>
+          <ol id="trace-list" class="trace-list"><li class="empty">Every decision will appear here with its inputs and vote counts.</li></ol>
+        </div>
+
+        <div class="card replay-card">
+          <div class="card-head">
+            <p class="section-kicker">Replay</p>
+            <span class="pill tiny" id="replay-label">live</span>
+          </div>
+          <div class="replay-marks" id="replay-marks"></div>
+          <input id="replay-range" type="range" min="0" max="0" value="0" step="1" aria-label="Scrub the decision trace" />
+          <div id="replay-detail" class="replay-detail">Scrub to inspect a decision.</div>
+          <div class="row wrap correction-actions">
+            <button id="correct-on-task" class="btn small" type="button">Mark selected moment on-task</button>
+            <button id="correct-drift" class="btn small ghost" type="button">Mark selected moment drift</button>
+            <button id="correct-five" class="btn small ghost" type="button">Label 5 similar on-task</button>
+            <button id="rerun-btn" class="btn small" type="button">Run a later similar moment</button>
+          </div>
+          <p id="correction-status" class="micro">No corrections stored for this goal.</p>
+          <div class="row wrap">
+            <button id="split-test-btn" class="btn tiny ghost" type="button">Test a 3–2 correction split</button>
+            <button id="clear-corrections" class="btn tiny ghost" type="button">Clear corrections for this goal</button>
+          </div>
+        </div>
+
+        <div class="card study-card">
+          <div class="card-head">
+            <p class="section-kicker">Study mode</p>
+            <span class="pill tiny" id="study-status">idle</span>
+          </div>
+          <p class="muted small">
+            Records only the worksheet tab you pick. No audio, no overlays in the recording. Mode, drift,
+            nudge and first-edit timestamps go to IndexedDB and export as CSV.
+          </p>
+          <div class="row wrap">
+            <button id="study-start" class="btn small" type="button">Start recording</button>
+            <button id="study-stop" class="btn small ghost" type="button" disabled>Stop &amp; save</button>
+            <button id="study-export-last" class="btn small ghost" type="button" disabled>Export last CSV</button>
+          </div>
+          <ul id="study-list" class="study-list"></ul>
+        </div>
+      </div>
+
+      <aside class="side-col">
+        <div class="card galaxy-card">
+          <div class="card-head">
+            <p class="section-kicker">Galaxy</p>
+            <span class="pill tiny" id="galaxy-backend">renderer</span>
+          </div>
+          <p class="galaxy-state" id="galaxy-state">FOCUSED</p>
+          <p class="micro">The points ease toward the current state. Particle count drops when a frame exceeds 20 ms.</p>
+          <button id="pip-btn" class="btn small" type="button">Float mini-galaxy</button>
+          <div id="mini-panel" class="mini-panel" hidden data-state="FOCUSED">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            <em>in-page fallback</em>
+          </div>
+        </div>
+        <div class="card corrections-card">
+          <div class="card-head">
+            <p class="section-kicker">Correction memory</p>
+            <span class="pill tiny" id="neighbor-count">0 / 5</span>
+          </div>
+          <p id="correction-detail" class="muted small">Stored locally per goal. Override needs 5 neighbours and a 4-of-5 vote.</p>
+          <div class="vote-bar" aria-hidden="true"><i id="vote-ontask"></i><i id="vote-drift"></i></div>
+        </div>
+        <div class="card voice-card">
+          <div class="card-head">
+            <p class="section-kicker">Voice</p>
+            <span class="pill tiny" id="voice-backend">checking</span>
+          </div>
+          <p id="voice-status" class="muted small">Preparing the local voice…</p>
+          <div class="progress"><i id="voice-bar-fill"></i></div>
+          <p class="micro">Kokoro is not bundled in this build; the device voice is the fallback. No nudge audio is recorded in study mode.</p>
+        </div>
+        <div class="card small print-card">
+          <p class="section-kicker">Honest scope</p>
+          <ul class="tight">
+            <li>Zero-install demo: scripted signals, labelled as such.</li>
+            <li>Face/ML models: adapter stubs, not shipped here.</li>
+            <li>Extension: real DOM capture + verification; it does not yet feed the fusion loop.</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<dialog id="settings-dialog" class="dialog">
+  <form method="dialog" class="dialog-body" id="thresholds-form">
+    <div class="dialog-head">
+      <div><p class="section-kicker">Configuration</p><h2>Thresholds</h2></div>
+      <button class="icon-btn" value="cancel" aria-label="Close settings">×</button>
+    </div>
+    <p class="muted small">Every tunable lives in <code>shared/src/config.ts</code>. Freezing writes a flag that blocks edits and is recorded on each session.</p>
+    <label class="goal-field">
+      <span>Session goal (used by the goal matcher and correction memory)</span>
+      <input id="goal-input" type="text" value="AP Chem unit 4 limiting reagent" autocomplete="off" />
+    </label>
+    <label class="freeze-toggle">
+      <input id="freeze-toggle" type="checkbox" />
+      <span><strong>Freeze thresholds</strong><small>Required before evaluation sessions. Locks every field below.</small></span>
+    </label>
+    <div id="threshold-fields" class="threshold-grid"></div>
+    <div class="dialog-actions">
+      <button id="settings-reset" class="btn small ghost" type="button">Reset defaults</button>
+      <span class="grow"></span>
+      <button class="btn small ghost" value="cancel">Cancel</button>
+      <button id="settings-save" class="btn small primary" value="default">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="unsupported-dialog" class="dialog">
+  <div class="dialog-body">
+    <div class="dialog-head">
+      <div><p class="section-kicker">Third-party page</p><h2 id="unsupported-title">The hosted demo cannot verify here</h2></div>
+      <button class="icon-btn" data-close="unsupported-dialog" aria-label="Close">×</button>
+    </div>
+    <p id="unsupported-body" class="muted"></p>
+    <div class="saved-context-box">
+      <span class="pill tiny">Saved context only</span>
+      <p class="small">No verified checkpoint exists for this page. The app will not claim a restore it cannot check.</p>
+      <code id="unsupported-url" class="url"></code>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn small ghost" data-close="unsupported-dialog" type="button">Close</button>
+      <button id="unsupported-ext" class="btn small primary" type="button">Install the extension</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="saved-dialog" class="dialog">
+  <div class="dialog-body">
+    <div class="dialog-head">
+      <div><p class="section-kicker">Restore check failed</p><h2>Saved context only</h2></div>
+      <button class="icon-btn" data-close="saved-dialog" aria-label="Close">×</button>
+    </div>
+    <p id="saved-reason" class="muted"></p>
+    <div class="saved-context-box">
+      <p class="micro">Saved anchor</p>
+      <blockquote id="saved-anchor" class="anchor"></blockquote>
+      <p class="micro">Surrounding text</p>
+      <p id="saved-context" class="context"></p>
+      <div id="saved-frame-wrap" hidden><p class="micro">Last on-task frame</p><img id="saved-frame" alt="The last on-task frame saved with this checkpoint" /></div>
+    </div>
+    <p class="small">Nothing was scrolled into view and verified, so this is not a resume.</p>
+    <div class="dialog-actions">
+      <button class="btn small ghost" data-close="saved-dialog" type="button">Close</button>
+      <a id="saved-open" class="btn small ghost" target="_blank" rel="noopener">Open saved URL</a>
+      <button id="saved-retry" class="btn small primary" type="button">Check again</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="extension-dialog" class="dialog">
+  <div class="dialog-body">
+    <div class="dialog-head">
+      <div><p class="section-kicker">Chrome MV3</p><h2>Load the extension</h2></div>
+      <button class="icon-btn" data-close="extension-dialog" aria-label="Close">×</button>
+    </div>
+    <ol class="install-steps">
+      <li><code>npm install &amp;&amp; npm run build:extension</code></li>
+      <li><code>chrome://extensions</code> → enable Developer mode → Load unpacked → <code>extension/dist</code></li>
+      <li>Copy the extension ID shown by Chrome into the field below.</li>
+    </ol>
+    <p id="ext-result" class="small muted">Connection is optional; the hosted demo works without it.</p>
+    <div class="field-row">
+      <input id="ext-id" type="text" placeholder="Extension ID (32 lowercase letters)" autocomplete="off" spellcheck="false" />
+      <button id="ext-check" class="btn small" type="button">Check</button>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn small ghost" data-close="extension-dialog" type="button">Close</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
