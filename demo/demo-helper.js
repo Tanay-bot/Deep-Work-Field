@@ -33,12 +33,27 @@
     if (!host) return false;
     var field = host.querySelector('textarea,input');
     if (!field) return false;
-    field.focus();
-    field.scrollIntoView({ block: 'center' });
+    // Land with the verified heading at the top and the answer box below it.
+    var top = host.getBoundingClientRect().top + window.scrollY - 28;
+    window.scrollTo({ top: Math.max(0, top) });
+    try { field.focus({ preventScroll: true }); } catch (e) { field.focus(); }
     return true;
   };
 
-  window.DWF_VERIFIED = function (label) {
+  window.DWF_VERIFIED = function (label, problemId) {
+    var host = problemId ? problem(problemId) : null;
+    document.querySelectorAll('.dwf-landed').forEach(function (el) { el.classList.remove('dwf-landed'); });
+    document.querySelectorAll('.dwf-marker').forEach(function (el) { el.remove(); });
+    var heading = host ? host.querySelector('h3') : null;
+    if (heading) {
+      host.classList.add('dwf-landed');
+      var marker = document.createElement('span');
+      marker.className = 'dwf-marker';
+      marker.setAttribute('role', 'status');
+      marker.textContent = label || 'Verified';
+      heading.appendChild(marker);
+      return;
+    }
     var pill = document.getElementById('restored-pill');
     if (!pill) return;
     pill.textContent = label || 'Deep Work Field verified this passage.';

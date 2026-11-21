@@ -169,7 +169,10 @@ export class Galaxy {
   private pointer = { x: 0, y: 0, tx: 0, ty: 0 };
   private scroll = 0;
   private layout: 'hero' | 'session' = 'hero';
-  private groupX = 1.9;
+  private groupX = 3.4;
+  private groupY = 1.5;
+  private projected = new THREE.Vector3();
+  private frameIndex = 0;
   private pulse = 0;
   private raf = 0;
   private lastFrame = 0;
@@ -439,13 +442,29 @@ export class Galaxy {
     this.pointer.x += (this.pointer.tx - this.pointer.x) * 0.04;
     this.pointer.y += (this.pointer.ty - this.pointer.y) * 0.04;
     const wide = this.camera.aspect > 1.1;
-    const targetX = this.layout === 'hero' && wide ? 1.2 - this.scroll * 2.4 : 0;
+    const targetX = this.layout === 'hero' ? (wide ? 3.0 + this.scroll * 0.6 : 1.6) : 0;
+    const targetY = this.layout === 'hero' ? (wide ? 2.9 : 2.6) * (1 - this.scroll) : 0;
     this.groupX += (targetX - this.groupX) * 0.05;
+    this.groupY += (targetY - this.groupY) * 0.05;
     this.group.position.x = this.groupX;
+    this.group.position.y = this.groupY;
     this.group.rotation.x = 0.18 + this.scroll * 0.9;
-    const dist = 6.4 - this.scroll * 1.6 + (this.layout === 'session' ? 1.2 : 0) + (wide ? 0 : 4.5);
+    const dist = 7.2 - this.scroll * 1.6 + (this.layout === 'session' ? 1.2 : 0) + (wide ? 0 : 4.5);
     this.camera.position.set(this.pointer.x * 0.6, 4.3 - this.scroll * 2.4 - this.pointer.y * 0.4, dist);
     this.camera.lookAt(this.groupX * 0.25, 0, 0);
+    this.camera.updateMatrixWorld();
+    const fade = (this.layout === 'hero' ? 1 - this.scroll * 0.7 : 0.85) * (wide ? 1 : 0.55);
+    this.renderer.domElement.style.opacity = fade.toFixed(3);
+
+    // Publish the core's screen position so the DOM thread can start there.
+    if (this.layout === 'hero' && (this.frameIndex++ & 1) === 0) {
+      this.projected.set(this.groupX, this.groupY, 0).project(this.camera);
+      const w = this.renderer.domElement.clientWidth;
+      const h = this.renderer.domElement.clientHeight;
+      const rootStyle = document.documentElement.style;
+      rootStyle.setProperty('--gx', String(((this.projected.x + 1) / 2) * w));
+      rootStyle.setProperty('--gy', String(((1 - this.projected.y) / 2) * h));
+    }
 
     this.renderer.render(this.scene, this.camera);
   };

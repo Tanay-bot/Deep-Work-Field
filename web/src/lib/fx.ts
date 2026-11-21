@@ -1,7 +1,7 @@
 /**
  * Presentation-only motion layer. Nothing here touches app state: it reads
- * the DOM the app already renders and animates it. Every effect is skipped
- * under prefers-reduced-motion.
+ * the DOM the app already renders and animates it. Headline and CTA are
+ * visible at first paint; motion is spent on the thread and on state changes.
  */
 import '@fontsource/instrument-serif/400.css';
 import '@fontsource/instrument-serif/400-italic.css';
@@ -12,38 +12,57 @@ import { gsap } from 'gsap';
 const root = document.documentElement;
 root.classList.add('js');
 const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
-/* ---------- Intro curtain + hero title ---------------------------------- */
-function intro(): void {
-  const curtain = document.querySelector<HTMLElement>('.intro');
-  const count = document.querySelector<HTMLElement>('.intro-count');
-  const words = gsap.utils.toArray<HTMLElement>('.ht-word');
-  if (reduce || !curtain || !count) {
-    curtain?.classList.add('done');
-    return;
-  }
-  gsap.set(words, { yPercent: 115, rotate: 4 });
-  gsap.set('.hero-panel', { opacity: 0, y: 60, rotateX: 20 });
-  gsap.set('.hero-stats > div, .hud-corners .hc', { opacity: 0, y: 14 });
-  const counter = { v: 0 };
-  const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
-  tl.to(counter, {
-    v: 100,
-    duration: 1.05,
-    ease: 'power2.inOut',
-    onUpdate: () => {
-      count.textContent = String(Math.round(counter.v)).padStart(3, '0');
-    },
-  })
-    .to(curtain, { yPercent: -100, duration: 0.9, ease: 'expo.inOut' }, '+=0.05')
-    .add(() => curtain.classList.add('done'))
-    .to(words, { yPercent: 0, rotate: 0, duration: 1.4, stagger: 0.09 }, '-=0.45')
-    .to('.hero-panel', { opacity: 1, y: 0, rotateX: 0, duration: 1.6 }, '-=1.2')
-    .to('.hero-stats > div, .hud-corners .hc', { opacity: 1, y: 0, duration: 1, stagger: 0.06 }, '-=1.1');
+/* ---------- The thread: galaxy core → the 4b underline ------------------ */
+function thread(): void {
+  const hero = document.querySelector<HTMLElement>('.hero');
+  const svg = document.querySelector<SVGSVGElement>('.thread');
+  const path = svg?.querySelector<SVGPathElement>('.thread-path');
+  const point = svg?.querySelector<SVGCircleElement>('.thread-point');
+  const target = document.querySelector<HTMLElement>('.thread-target');
+  const sheet = document.querySelector<HTMLElement>('.paper-front');
+  const landing = document.getElementById('landing');
+  if (!hero || !svg || !path || !point || !target || !landing || !sheet) return;
+
+  const start = performance.now() + 250;
+  const duration = 1100;
+  let visible = true;
+  new IntersectionObserver((entries) => (visible = entries[0]?.isIntersecting ?? true)).observe(hero);
+
+  const frame = (now: number) => {
+    requestAnimationFrame(frame);
+    if (!visible || landing.hidden) return;
+    const h = hero.getBoundingClientRect();
+    const t = target.getBoundingClientRect();
+    const css = getComputedStyle(root);
+    const gx = parseFloat(css.getPropertyValue('--gx'));
+    const gy = parseFloat(css.getPropertyValue('--gy'));
+    const sx = Number.isFinite(gx) && gx > 0 ? Math.min(gx, window.innerWidth - 20) - h.left : h.width - 30;
+    const sy = Number.isFinite(gy) && gy > -400 ? Math.max(gy, 30) - h.top : 40;
+    const ex = t.right - h.left;
+    const ey = t.bottom + 1 - h.top;
+    // Sweep out past the sheet's right edge, then run in along the underline.
+    const edge = sheet.getBoundingClientRect().right - h.left;
+    const swing = Math.max(edge + 70, sx + 40);
+    const d =
+      `M ${sx.toFixed(1)} ${sy.toFixed(1)} ` +
+      `C ${(swing + 40).toFixed(1)} ${(sy + (ey - sy) * 0.35).toFixed(1)}, ` +
+      `${(swing + 30).toFixed(1)} ${ey.toFixed(1)}, ${(edge - 2).toFixed(1)} ${ey.toFixed(1)} ` +
+      `L ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+    path.setAttribute('d', d);
+    const len = path.getTotalLength();
+    const p = reduce ? 1 : Math.min(1, Math.max(0, (now - start) / duration));
+    const eased = 1 - Math.pow(1 - p, 3);
+    path.style.strokeDasharray = `${(len * eased).toFixed(1)} ${len.toFixed(1)}`;
+    const tip = path.getPointAtLength(len * eased);
+    point.setAttribute('cx', tip.x.toFixed(1));
+    point.setAttribute('cy', tip.y.toFixed(1));
+    point.setAttribute('r', (p < 1 ? 3 : 4 + Math.sin(now / 400) * 1.2).toFixed(2));
+  };
+  requestAnimationFrame(frame);
 }
 
-/* ---------- Scroll reveals ---------------------------------------------- */
+/* ---------- Section reveals (below the fold only) ----------------------- */
 function reveals(): void {
   const items = document.querySelectorAll<HTMLElement>('.reveal-up');
   if (reduce || !('IntersectionObserver' in window)) {
@@ -56,78 +75,19 @@ function reveals(): void {
         if (!entry.isIntersecting) continue;
         const el = entry.target as HTMLElement;
         const siblings = Array.from(el.parentElement?.children ?? []).filter((c) => c.classList.contains('reveal-up'));
-        el.style.transitionDelay = `${Math.max(0, siblings.indexOf(el)) * 90 + (el.closest('.hero') ? 1900 : 0)}ms`;
+        el.style.transitionDelay = `${Math.max(0, siblings.indexOf(el)) * 70}ms`;
         el.classList.add('in');
         io.unobserve(el);
       }
     },
-    { threshold: 0.12, rootMargin: '0px 0px -6% 0px' },
+    { threshold: 0.1 },
   );
   items.forEach((el) => io.observe(el));
-
-  // Big section headings: split into lines and rise.
-  document.querySelectorAll<HTMLElement>('.reveal-lines').forEach((el) => {
-    const parts = el.innerHTML.split(/<br\s*\/?>/i);
-    el.innerHTML = parts.map((p) => `<span class="ht-line"><span class="ht-word">${p}</span></span>`).join('');
-    const lineWords = el.querySelectorAll('.ht-word');
-    gsap.set(lineWords, { yPercent: 115 });
-    const lio = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        gsap.to(lineWords, { yPercent: 0, duration: 1.3, stagger: 0.12, ease: 'expo.out' });
-        lio.disconnect();
-      },
-      { threshold: 0.3 },
-    );
-    lio.observe(el);
-  });
 }
 
-/* ---------- Pointer effects --------------------------------------------- */
-function cursor(): void {
-  const el = document.querySelector<HTMLElement>('.cursor');
-  if (!el || !finePointer || reduce) return;
-  const xTo = gsap.quickTo(el, 'x', { duration: 0.45, ease: 'power3' });
-  const yTo = gsap.quickTo(el, 'y', { duration: 0.45, ease: 'power3' });
-  window.addEventListener('pointermove', (e) => {
-    el.classList.add('on');
-    xTo(e.clientX);
-    yTo(e.clientY);
-    const interactive = (e.target as HTMLElement).closest?.('a, button, label, select, input, [role="button"], .trace-row');
-    el.classList.toggle('hover', !!interactive);
-  }, { passive: true });
-  document.addEventListener('pointerleave', () => el.classList.remove('on'));
-}
-
-function magnetic(): void {
-  if (!finePointer || reduce) return;
-  document.querySelectorAll<HTMLElement>('.magnetic').forEach((el) => {
-    const xTo = gsap.quickTo(el, 'x', { duration: 0.6, ease: 'elastic.out(1, 0.4)' });
-    const yTo = gsap.quickTo(el, 'y', { duration: 0.6, ease: 'elastic.out(1, 0.4)' });
-    el.addEventListener('pointermove', (e) => {
-      const r = el.getBoundingClientRect();
-      xTo((e.clientX - (r.left + r.width / 2)) * 0.3);
-      yTo((e.clientY - (r.top + r.height / 2)) * 0.4);
-    });
-    el.addEventListener('pointerleave', () => {
-      xTo(0);
-      yTo(0);
-    });
-  });
-}
-
-function tilt(): void {
-  if (!finePointer || reduce) return;
-  const win = document.querySelector<HTMLElement>('.tilt');
-  const panel = document.querySelector<HTMLElement>('.hero-panel');
-  if (win && panel) {
-    window.addEventListener('pointermove', (e) => {
-      const nx = e.clientX / window.innerWidth - 0.5;
-      const ny = e.clientY / window.innerHeight - 0.5;
-      win.style.transform = `rotateY(${-14 + nx * 16}deg) rotateX(${6 - ny * 12}deg) rotateZ(1deg)`;
-    }, { passive: true });
-  }
-  // Spotlight that follows the pointer inside panels and cards.
+/* ---------- Subtle spotlight inside panels ------------------------------ */
+function spotlight(): void {
+  if (reduce) return;
   document.addEventListener('pointermove', (e) => {
     const host = (e.target as HTMLElement).closest?.('.panel') as HTMLElement | null;
     if (!host) return;
@@ -135,24 +95,6 @@ function tilt(): void {
     host.style.setProperty('--mx', `${e.clientX - r.left}px`);
     host.style.setProperty('--my', `${e.clientY - r.top}px`);
   }, { passive: true });
-}
-
-/* ---------- HUD: clock + state mirrors ---------------------------------- */
-function hud(): void {
-  const clocks = document.querySelectorAll<HTMLElement>('[data-hud-clock]');
-  const states = document.querySelectorAll<HTMLElement>('[data-hud-state]');
-  const started = performance.now();
-  const tick = () => {
-    const s = Math.floor((performance.now() - started) / 1000);
-    const text = [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map((n) => String(n).padStart(2, '0')).join(':');
-    clocks.forEach((c) => (c.textContent = text));
-  };
-  tick();
-  window.setInterval(tick, 1000);
-  new MutationObserver(() => {
-    const focus = root.dataset.focus ?? 'FOCUSED';
-    states.forEach((s) => (s.textContent = focus));
-  }).observe(root, { attributes: true, attributeFilter: ['data-focus'] });
 }
 
 /* ---------- Session entrance -------------------------------------------- */
@@ -163,53 +105,19 @@ function sessionEntrance(): void {
     if (session.hidden) return;
     window.scrollTo({ top: 0 });
     if (reduce) return;
-    gsap.fromTo('#session-goal', { yPercent: 60, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 1.2, ease: 'expo.out' });
     gsap.fromTo(
       '#session .card',
-      { y: 50, opacity: 0, scale: 0.98 },
-      { y: 0, opacity: 1, scale: 1, duration: 1, stagger: 0.06, ease: 'expo.out', delay: 0.1, clearProps: 'transform,opacity' },
+      { y: 24, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.45, stagger: 0.04, ease: 'power3.out', clearProps: 'transform,opacity' },
     );
   }).observe(session, { attributes: true, attributeFilter: ['hidden'] });
 }
 
-/* ---------- State word scramble ----------------------------------------- */
-function scramble(): void {
-  const el = document.getElementById('galaxy-state');
-  if (!el || reduce) return;
-  const glyphs = 'abcdefghijklmnopqrstuvwxyz';
-  let busy = false;
-  new MutationObserver(() => {
-    if (busy) return;
-    const target = el.textContent ?? '';
-    busy = true;
-    let frame = 0;
-    const total = 14;
-    const step = () => {
-      frame++;
-      const live = root.dataset.focus ?? target;
-      el.textContent = live
-        .split('')
-        .map((ch, i) => (i < (frame / total) * live.length ? ch : glyphs[Math.floor(Math.random() * glyphs.length)]))
-        .join('');
-      if (frame < total) requestAnimationFrame(step);
-      else {
-        el.textContent = root.dataset.focus ?? target;
-        requestAnimationFrame(() => (busy = false));
-      }
-    };
-    step();
-  }).observe(el, { childList: true, characterData: true, subtree: true });
-}
-
 function boot(): void {
-  intro();
+  thread();
   reveals();
-  cursor();
-  magnetic();
-  tilt();
-  hud();
+  spotlight();
   sessionEntrance();
-  scramble();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

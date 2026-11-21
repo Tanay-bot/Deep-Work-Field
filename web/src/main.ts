@@ -698,6 +698,12 @@ async function resume(): Promise<void> {
   dom.firstEditStatus.textContent = '';
   state.study.log('resume', `${landingNote(win, checkpoint)} · attempts=${result.attempts}`, 'FOCUSED');
   try {
+    const mark = (win as unknown as { DWF_VERIFIED?: (label: string, id: string) => void }).DWF_VERIFIED;
+    mark?.(`Verified · problem ${checkpoint.problemId}`, checkpoint.problemId);
+  } catch {
+    /* page closed */
+  }
+  try {
     const api = (win as unknown as { DWF_FOCUS_ANSWER?: (id: string) => boolean }).DWF_FOCUS_ANSWER;
     api?.(checkpoint.problemId);
     if (!api) {

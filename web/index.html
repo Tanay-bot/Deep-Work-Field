@@ -14,23 +14,15 @@
 <canvas id="galaxy" aria-hidden="true"></canvas>
 <div class="vignette" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
-<div class="cursor" aria-hidden="true"><i></i></div>
-<div class="intro" aria-hidden="true">
-  <div class="intro-inner">
-    <span class="intro-count">000</span>
-    <span class="intro-word">calibrating the field</span>
-  </div>
-</div>
-
 <header class="topbar">
   <a class="brand" href="/" aria-label="Deep Work Field home">
     <span class="brand-mark" aria-hidden="true"><i></i><i></i><b></b></span>
     <span class="brand-name">Deep Work <em>Field</em></span>
   </a>
-  <div class="topmid" aria-hidden="true">
-    <span class="hud-dot"></span><span class="hud-state" data-hud-state>FOCUSED</span>
-    <span class="hud-sep">/</span><span data-hud-clock>00:00:00</span>
-  </div>
+  <nav class="toplinks" aria-label="Sections">
+    <a href="#proof">How it works</a>
+    <a href="#install">Chrome extension</a>
+  </nav>
   <nav class="topnav" aria-label="Session controls">
     <label class="mode-picker">
       <span>Mode</span>
@@ -48,76 +40,77 @@
 <main>
   <section id="landing">
     <div class="hero">
-      <div class="hud-corners" aria-hidden="true">
-        <span class="hc tl">RA 04h·0b<br />DEC +4b°</span>
-        <span class="hc tr">ON-DEVICE<br />NO ACCOUNTS · NO CLOUD AI</span>
-      </div>
       <div class="hero-copy">
-        <p class="eyebrow reveal-up"><span class="live-dot"></span> A study companion that keeps your place</p>
-        <h1 class="hero-title" aria-label="Your study session drifted. One click takes you back to problem 4b.">
-          <span class="ht-line" aria-hidden="true"><span class="ht-word">Your study session</span></span>
-          <span class="ht-line big" aria-hidden="true"><em class="ht-word glitch" data-text="drifted.">drifted.</em></span>
-          <span class="ht-line" aria-hidden="true"><span class="ht-word"><span class="sans">One click</span> takes you</span></span>
-          <span class="ht-line" aria-hidden="true"><span class="ht-word">back to problem <span class="ring-num">4b<svg viewBox="0 0 120 70" aria-hidden="true"><ellipse cx="60" cy="35" rx="56" ry="30" /></svg></span>.</span></span>
-        </h1>
-        <p class="lede reveal-up">
-          Deep Work Field notices when the worksheet stops being the thing on your screen, speaks the exact
-          problem you left, and reopens it, verified against the surrounding passage, even after the page
-          reflowed or the tab was closed.
+        <p class="eyebrow"><span class="live-dot"></span> On-device study companion for Chrome</p>
+        <h1 class="hero-title">Find your<br /><em>place</em> again.</h1>
+        <p class="lede">
+          Your study session drifted. Deep Work Field noticed, and one click takes you back to
+          problem 4b, verified against the text around it, even after the tab was closed.
         </p>
-        <div class="hero-actions reveal-up">
-          <button id="try-btn" class="btn primary mega magnetic" type="button">
-            <span class="btn-label">Try it now</span><span class="btn-sub">no install</span>
+        <div class="hero-actions">
+          <button id="try-btn" class="btn primary mega" type="button">
+            <span class="btn-label">Try the 4b demo</span>
             <span class="btn-arrow" aria-hidden="true">→</span>
           </button>
-          <button id="extension-btn" class="btn ghost magnetic" type="button">Get the extension</button>
+          <button id="extension-btn" class="btn ghost" type="button">Get the extension</button>
         </div>
-        <p class="micro reveal-up">
-          The zero-install demo runs a labelled, scripted drift signal. This build ships the checkpoint,
-          verified restore, fusion engine and study mode; face and ML adapters are stubs, and the hosted
-          app never asks for your camera.
-        </p>
+        <p class="cta-note">Scripted demo · No install · No camera</p>
       </div>
-      <div class="hero-panel" aria-hidden="true">
-        <div class="mock-window tilt">
-          <div class="mock-bar"><span></span><span></span><span></span><em>worksheet-a.html · twin headings</em></div>
-          <div class="mock-sheet">
-            <p class="mock-kicker">PART II · LIMITING REAGENTS</p>
-            <h3 class="mock-hit">4b. Limiting reagent <b>MATCH</b></h3>
-            <p>A 10.0 g sample of aluminum reacts with 10.0 g of chlorine gas…</p>
-            <div class="mock-box"><span>theoretical yield</span><i class="caret"></i></div>
-            <div class="mock-twin"><p class="mock-kicker">ANSWER KEY</p><h3>4b. Limiting reagent <b>REJECTED</b></h3><small>prefix ≠ “Part II-” · suffix ≠ “A 10.0 g”</small></div>
-          </div>
-          <div class="mock-nudge"><span class="mock-wave"><i></i><i></i><i></i><i></i><i></i></span>“You were on 4b, limiting reagent.”</div>
-          <div class="mock-trace">
-            <span><i class="dot ok"></i>FOCUSED</span>
-            <span><i class="dot warn"></i>DRIFTING 3.2s</span>
-            <span><i class="dot quiet"></i>UNCERTAIN</span>
-          </div>
+
+      <div class="hero-art" aria-hidden="true">
+        <div class="paper paper-back">
+          <p class="paper-kicker">Part III · Answer key (teacher copy)</p>
+          <h3>4b. Limiting reagent</h3>
+          <p>Al: 10.0 g ÷ 26.98 = 0.3706 mol. Cl₂: 10.0 g ÷ 70.90 = 0.1410 mol.</p>
         </div>
-        <div class="orbit-label ol-1">prefix + suffix</div>
-        <div class="orbit-label ol-2">getBoundingClientRect()</div>
-        <div class="orbit-label ol-3">saved-context fallback</div>
+        <div class="paper paper-front">
+          <p class="paper-kicker">Riverside High · AP Chemistry · Unit 4</p>
+          <p class="paper-dim">…round your answer, then convert to grams.</p>
+          <p class="paper-part">Part II — Limiting reagents</p>
+          <h3><span class="thread-target">4b. Limiting reagent</span></h3>
+          <p>A 10.0 g sample of aluminum reacts with 10.0 g of chlorine gas:</p>
+          <p class="paper-eq">2 Al + 3 Cl₂ → 2 AlCl₃</p>
+          <div class="paper-answer"><span>Your work</span><i class="caret"></i></div>
+        </div>
+        <div class="nudge-chip"><span class="mock-wave"><i></i><i></i><i></i><i></i><i></i></span>“You were on 4b, limiting reagent.”</div>
       </div>
-      <dl class="hero-stats">
-        <div><dt>Restore check</dt><dd>prefix + suffix + viewport</dd></div>
-        <div><dt>Storage</dt><dd>IndexedDB, never uploaded</dd></div>
-        <div><dt>Corrections</dt><dd>4-of-5 supermajority</dd></div>
-        <div><dt>Drift hold</dt><dd>3 s before a log</dd></div>
-      </dl>
+      <svg class="thread" aria-hidden="true"><defs><linearGradient id="thread-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb547" stop-opacity="0" /><stop offset=".35" stop-color="#ffb547" stop-opacity=".55" /><stop offset="1" stop-color="#ffd38a" /></linearGradient><filter id="thread-glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs><path class="thread-path" d="" /><circle class="thread-point" r="4" cx="-20" cy="-20" /></svg>
     </div>
 
-    <div class="marquee" aria-hidden="true">
-      <div class="marquee-track">
-        <span>Focused</span><i>✦</i><span class="o">Writing</span><i>✦</i><span>Uncertain</span><i>✦</i><span class="o">Drifting</span><i>✦</i><span>Resume, verified</span><i>✦</i>
-        <span>Focused</span><i>✦</i><span class="o">Writing</span><i>✦</i><span>Uncertain</span><i>✦</i><span class="o">Drifting</span><i>✦</i><span>Resume, verified</span><i>✦</i>
+    <section class="proof" id="proof">
+      <header class="section-head">
+        <p class="section-kicker">The hard case</p>
+        <h2 class="display">Same heading.<br /><em>Different place.</em></h2>
+        <p class="lede">The worksheet has two headings that read “4b. Limiting reagent”: the problem, and the answer key. A heading alone can’t tell them apart, so Deep Work Field saves the words on either side and checks them when you come back.</p>
+      </header>
+      <div class="twins">
+        <figure class="twin twin-match reveal-up">
+          <figcaption><span class="tag ok">Match</span> Part II · the problem you were on</figcaption>
+          <div class="paper">
+            <p class="ctx"><mark class="pre">Part II — Limiting reagents</mark></p>
+            <h3><span class="ul">4b. Limiting reagent</span></h3>
+            <p class="ctx"><mark class="suf">A 10.0 g sample of aluminum</mark> reacts with 10.0 g of chlorine gas…</p>
+          </div>
+          <dl class="checks"><div><dt>Text before</dt><dd class="ok">matches</dd></div><div><dt>Text after</dt><dd class="ok">matches</dd></div><div><dt>In view</dt><dd class="ok">yes</dd></div></dl>
+        </figure>
+        <figure class="twin twin-miss reveal-up">
+          <figcaption><span class="tag no">Skipped</span> Part III · the answer key</figcaption>
+          <div class="paper">
+            <p class="ctx"><s>Part III — Answer key (teacher copy)</s></p>
+            <h3>4b. Limiting reagent</h3>
+            <p class="ctx"><s>Al: 10.0 g ÷ 26.98</s> = 0.3706 mol. Cl₂: 10.0 g ÷ 70.90…</p>
+          </div>
+          <dl class="checks"><div><dt>Text before</dt><dd class="no">differs</dd></div><div><dt>Text after</dt><dd class="no">differs</dd></div><div><dt>Result</dt><dd>not used</dd></div></dl>
+        </figure>
       </div>
-    </div>
+      <p class="fragment reveal-up"><span>Resume link</span><code>#:~:text=Part%20II-,4b.%20Limiting%20reagent,-A%2010.0%20g</code></p>
+      <p class="micro honest">If the check fails, the app says <strong>Saved context only</strong> and shows what it saved. It never claims a restore it did not verify. The zero-install demo runs a labelled, scripted drift signal; face and ML adapters are stubs, and the hosted app never asks for your camera.</p>
+    </section>
 
     <section class="how" id="loop">
       <header class="section-head">
-        <p class="section-kicker">§01 · The loop</p>
-        <h2 class="display reveal-lines">Three moves.<br /><em>Zero guessing.</em></h2>
+        <p class="section-kicker">The loop</p>
+        <h2 class="display">Save. Notice.<br /><em>Return.</em></h2>
       </header>
       <ol class="how-grid">
         <li class="how-row reveal-up"><span class="how-num">01</span><div><h3>Save the passage</h3><p>URL, problem id, the anchor text, and the text immediately before and after it.</p></div><code class="how-code">{ anchor, prefix, suffix }</code></li>
@@ -127,8 +120,8 @@
     </section>
 
     <section class="grid-3 bento" id="modes">
-      <article class="panel tilt-soft reveal-up">
-        <p class="section-kicker">§02 · Modes</p>
+      <article class="panel reveal-up">
+        <p class="section-kicker">Modes</p>
         <h2>Three modes, <em>one</em> checkpoint core</h2>
         <ul class="mode-list">
           <li><b>I</b><strong>Resume-only</strong><span>Checkpoints and verified restore. No detection.</span></li>
@@ -137,8 +130,8 @@
         </ul>
         <p class="micro">All three call the same checkpoint and restore code path.</p>
       </article>
-      <article class="panel tilt-soft reveal-up">
-        <p class="section-kicker">§03 · Supported content</p>
+      <article class="panel reveal-up">
+        <p class="section-kicker">Supported content</p>
         <h2>What restores <em>where</em></h2>
         <table class="support">
           <thead><tr><th>Content</th><th>Hosted demo</th><th>Extension</th></tr></thead>
@@ -152,8 +145,8 @@
         </table>
         <p class="micro">Extension built-in restore was verified end-to-end in Chromium 141. Uploaded and pasted pages use the same content script; they are implemented but not yet verified in that harness. Text fragments do not work inside Google Docs, so the UI never claims a verified restore there.</p>
       </article>
-      <article class="panel tilt-soft reveal-up" id="install">
-        <p class="section-kicker">§04 · Install</p>
+      <article class="panel reveal-up" id="install">
+        <p class="section-kicker">Install</p>
         <h2>Extension in <em>three</em> steps</h2>
         <ol class="install-steps">
           <li>Build the extension: <code>npm run build:extension</code>.</li>
@@ -161,13 +154,13 @@
           <li>Copy the extension ID into the extension setup dialog here so the page can talk to it.</li>
         </ol>
         <p class="micro">The web app ↔ extension bridge uses <code>chrome.runtime.sendMessage</code> with <code>externally_connectable</code>, not page injection.</p>
-        <button id="extension-btn-2" class="btn small magnetic" type="button">Open setup steps →</button>
+        <button id="extension-btn-2" class="btn small" type="button">Open setup steps →</button>
       </article>
     </section>
 
     <section class="url-check panel reveal-up">
       <div>
-        <p class="section-kicker">§05 · Hard case</p>
+        <p class="section-kicker">Hard case</p>
         <h2>Paste an assignment URL</h2>
         <p class="muted">The hosted page cannot read another site because of browser same-origin rules. Watch what it says instead of pretending.</p>
       </div>
@@ -286,16 +279,19 @@
           <input id="replay-range" type="range" min="0" max="0" value="0" step="1" aria-label="Scrub the decision trace" />
           <div id="replay-detail" class="replay-detail">Scrub to inspect a decision.</div>
           <div class="row wrap correction-actions">
-            <button id="correct-on-task" class="btn small" type="button">Mark selected moment on-task</button>
-            <button id="correct-drift" class="btn small ghost" type="button">Mark selected moment drift</button>
-            <button id="correct-five" class="btn small ghost" type="button">Label 5 similar on-task</button>
-            <button id="rerun-btn" class="btn small" type="button">Run a later similar moment</button>
+            <button id="correct-on-task" class="btn small" type="button">I was on task</button>
+            <button id="correct-drift" class="btn small ghost" type="button">I was distracted</button>
           </div>
           <p id="correction-status" class="micro">No corrections stored for this goal.</p>
-          <div class="row wrap">
-            <button id="split-test-btn" class="btn tiny ghost" type="button">Test a 3–2 correction split</button>
-            <button id="clear-corrections" class="btn tiny ghost" type="button">Clear corrections for this goal</button>
-          </div>
+          <details class="lab">
+            <summary>Lab tools</summary>
+            <div class="row wrap">
+              <button id="correct-five" class="btn small ghost" type="button">Label 5 similar on-task</button>
+              <button id="rerun-btn" class="btn small ghost" type="button">Run a later similar moment</button>
+              <button id="split-test-btn" class="btn small ghost" type="button">Test a 3–2 correction split</button>
+              <button id="clear-corrections" class="btn small ghost" type="button">Clear corrections for this goal</button>
+            </div>
+          </details>
         </div>
 
         <div class="card study-card">
@@ -363,7 +359,7 @@
 <dialog id="settings-dialog" class="dialog">
   <form method="dialog" class="dialog-body" id="thresholds-form">
     <div class="dialog-head">
-      <div><p class="section-kicker">Configuration</p><h2>Thresholds</h2></div>
+      <div><p class="section-kicker">Session</p><h2>Settings</h2></div>
       <button class="icon-btn" value="cancel" aria-label="Close settings">×</button>
     </div>
     <p class="muted small">Every tunable lives in <code>shared/src/config.ts</code>. Freezing writes a flag that blocks edits and is recorded on each session.</p>
@@ -371,11 +367,14 @@
       <span>Session goal (used by the goal matcher and correction memory)</span>
       <input id="goal-input" type="text" value="AP Chem unit 4 limiting reagent" autocomplete="off" />
     </label>
+    <details class="advanced">
+    <summary>Advanced · evaluation thresholds</summary>
     <label class="freeze-toggle">
       <input id="freeze-toggle" type="checkbox" />
       <span><strong>Freeze thresholds</strong><small>Required before evaluation sessions. Locks every field below.</small></span>
     </label>
     <div id="threshold-fields" class="threshold-grid"></div>
+    </details>
     <div class="dialog-actions">
       <button id="settings-reset" class="btn small ghost" type="button">Reset defaults</button>
       <span class="grow"></span>
