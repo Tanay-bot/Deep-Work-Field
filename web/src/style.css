@@ -734,3 +734,23 @@ a.dl::before { content: '↓ '; }
 .capybara .eye { fill: var(--amber); }
 .capybara text { fill: var(--bone-2); font-family: var(--mono); font-size: 10px; text-anchor: middle; letter-spacing: 0.1em; }
 @keyframes capy-draw { to { stroke-dashoffset: 0; } }
+
+/* Replay timeline: milestones over decision ticks, on a real time scale */
+.replay-marks { height: 64px; overflow: visible; margin-bottom: 8px; }
+.replay-marks .tick { position: absolute; bottom: 6px; width: 2px; height: 10px; border-radius: 1px; background: var(--amber); opacity: 0.55; box-shadow: none; }
+.replay-marks .tick[data-state="DRIFTING"] { background: var(--ember); opacity: 0.9; }
+.replay-marks .tick[data-state="WRITING"] { background: var(--mint); }
+.replay-marks .tick[data-state="UNCERTAIN"] { background: var(--lilac); opacity: 0.4; }
+.replay-marks .mile { position: absolute; top: calc(4px + var(--row) * 20px); transform: translateX(-50%); font-family: var(--mono); font-size: 10.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--ink); color: var(--bone); white-space: nowrap; cursor: pointer; z-index: 1; }
+.replay-marks .mile::after { content: ''; position: absolute; left: 50%; top: 100%; width: 1px; height: calc(32px - var(--row) * 20px); background: currentColor; opacity: 0.5; }
+.replay-marks .mile[data-kind="saved"], .replay-marks .mile[data-kind="verified"] { color: var(--amber); border-color: rgba(255, 181, 71, 0.5); }
+.replay-marks .mile[data-kind="drift"], .replay-marks .mile[data-kind="failed"] { color: var(--ember); border-color: rgba(255, 77, 46, 0.5); }
+.replay-marks .mile[data-kind="nudge"] { color: var(--ink); background: var(--amber); border-color: var(--amber); }
+.replay-marks .mile[data-kind="edit"] { color: var(--mint); border-color: rgba(111, 245, 210, 0.5); }
+.replay-marks .scale { position: absolute; bottom: -16px; font-family: var(--mono); font-size: 10px; color: var(--faint); }
+.replay-marks .scale.l { left: 0; } .replay-marks .scale.r { right: 0; }
+.vote-dots { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.vote-dots i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--line-strong); }
+.vote-dots i.on { background: var(--mint); border-color: var(--mint); box-shadow: 0 0 8px var(--mint); }
+.vote-dots i.off { background: var(--ember); border-color: var(--ember); box-shadow: 0 0 8px var(--ember); }
+.vote-dots span { flex-basis: 100%; font-size: 13px; color: var(--bone-2); margin-top: 4px; }

@@ -123,6 +123,7 @@ const state = {
   face: new FaceSensor(),
   faceTimer: 0,
   calibrating: false,
+  milestones: [] as { t: number; kind: 'saved' | 'drift' | 'nudge' | 'verified' | 'edit' | 'failed'; label: string }[],
   lastStateLog: '' as FocusState | '',
 };
 
@@ -320,15 +321,45 @@ function renderTrace(): void {
   renderReplayMarks();
 }
 
+function milestone(kind: (typeof state.milestones)[number]['kind'], label: string): void {
+  state.milestones.push({ t: Date.now(), kind, label });
+  renderReplayMarks();
+}
+
+/**
+ * One timeline on a real time scale: labelled milestones (Saved → Drift →
+ * Nudge → Verified → First edit) above thin ticks for every decision. Click a
+ * milestone to jump the replay to the decision nearest that moment.
+ */
 function renderReplayMarks(): void {
-  const total = Math.max(1, state.trace.length);
-  const marks: string[] = [];
-  state.trace.forEach((entry, index) => {
-    const left = (index / total) * 100;
-    if (entry.distractionLogged) marks.push(`<i class="mark-drift" style="left:${left}%" title="Distraction logged"></i>`);
-    if (entry.nudge) marks.push(`<i class="mark-nudge" style="left:${left}%" title="Nudge"></i>`);
+  const times = [...state.trace.map((e) => e.t), ...state.milestones.map((m) => m.t)];
+  if (!times.length) {
+    dom.replayMarks.innerHTML = '';
+    return;
+  }
+  const t0 = Math.min(...times);
+  const span = Math.max(1000, Math.max(...times) - t0);
+  const pos = (t: number) => Math.min(99, Math.max(1, ((t - t0) / span) * 100)).toFixed(2);
+  const ticks = state.trace.map((e) => `<i class="tick" data-state="${e.state}" style="left:${pos(e.t)}%"></i>`);
+  const marks = state.milestones.map(
+    (m, i) => `<button type="button" class="mile" data-kind="${m.kind}" data-t="${m.t}" style="left:${pos(m.t)}%;--row:${i % 2}" title="${escapeHtml(m.label)} at +${Math.round((m.t - t0) / 1000)}s">${escapeHtml(m.label)}</button>`,
+  );
+  const seconds = Math.round(span / 1000);
+  dom.replayMarks.innerHTML = ticks.join('') + marks.join('') + `<span class="scale l">0s</span><span class="scale r">${seconds}s</span>`;
+  dom.replayMarks.querySelectorAll<HTMLButtonElement>('.mile').forEach((button) => {
+    button.addEventListener('click', () => {
+      const t = Number(button.dataset.t);
+      let best = -1;
+      state.trace.forEach((e, i) => {
+        if (best === -1 || Math.abs(e.t - t) < Math.abs(state.trace[best].t - t)) best = i;
+      });
+      if (best >= 0) {
+        state.selectedTrace = best;
+        renderTraceSelection();
+        renderReplayDetail(best);
+      }
+    });
   });
-  dom.replayMarks.innerHTML = marks.join('');
 }
 
 function renderReplayDetail(index: number): void {
@@ -375,6 +406,8 @@ function updateCorrectionPanel(entry?: TraceEntry): void {
     dom.voteOnTask.style.width = '0%';
     dom.voteDrift.style.width = '0%';
     dom.correctionDetail.textContent = 'Stored locally per goal. Override needs 5 neighbours and a 4-of-5 vote.';
+    const dotsHost = document.getElementById('vote-dots');
+    if (dotsHost) dotsHost.innerHTML = `${'<i></i>'.repeat(state.thresholds.correctionK)}<span>Select a moment in the replay.</span>`;
     return;
   }
   const vote = correctionVote(
@@ -389,13 +422,31 @@ function updateCorrectionPanel(entry?: TraceEntry): void {
   const total = Math.max(0.0001, vote.weightedOnTask + vote.weightedDrift);
   dom.voteOnTask.style.width = `${Math.round((vote.weightedOnTask / total) * 100)}%`;
   dom.voteDrift.style.width = `${Math.round((vote.weightedDrift / total) * 100)}%`;
+  const k = state.thresholds.correctionK;
+  const dots = [
+    ...Array.from({ length: vote.onTask }, () => '<i class="on" title="marked on-task"></i>'),
+    ...Array.from({ length: vote.drift }, () => '<i class="off" title="marked drift"></i>'),
+    ...Array.from({ length: Math.max(0, k - vote.onTask - vote.drift) }, () => '<i title="no similar correction"></i>'),
+  ].join('');
+  const words: Record<string, string> = {
+    'on-task': `Override: treat as on-task (${vote.onTask} of ${k} agree).`,
+    drift: `Leans drift (${vote.drift} of ${k}); only applies with a present face and an unclear screen.`,
+    split: `Split ${vote.onTask}–${vote.drift}: stays UNCERTAIN, no nudge.`,
+    none: vote.neighbors ? `Only ${vote.neighbors} of ${k} similar corrections; no override.` : `No similar corrections yet; no override.`,
+  };
+  const dotsHost = document.getElementById('vote-dots');
+  if (dotsHost) dotsHost.innerHTML = `${dots}<span>${words[vote.decision]}</span>`;
   dom.correctionDetail.innerHTML =
     `Nearby: <strong>${vote.onTask}</strong> on-task · <strong>${vote.drift}</strong> drift · decision <strong>${vote.decision}</strong>. ` +
     `Override requires ${state.thresholds.correctionSupermajority}-of-${state.thresholds.correctionK} within distance ${state.thresholds.correctionMaxDistance}.`;
   dom.correctionStatus.textContent =
     vote.neighbors === 0
       ? `No corrections stored for “${state.goal}” yet.`
-      : `${state.corrections.filter((c) => c.goal === state.goal).length} corrections stored for this goal.`;
+      : (() => {
+          const mine = state.corrections.filter((c) => c.goal === state.goal);
+          const lab = mine.filter((c) => c.lab).length;
+          return `${mine.length - lab} saved correction${mine.length - lab === 1 ? '' : 's'} for this goal${lab ? ` + ${lab} lab (this session only)` : ''}.`;
+        })();
 }
 
 function appendDecision(decision: EngineDecision, input: { screenText: string; sim: number; face: FaceCue | null; source: 'dom' | 'ocr' | 'scripted' | 'none' }, extraReason?: string): TraceEntry {
@@ -423,7 +474,11 @@ function appendDecision(decision: EngineDecision, input: { screenText: string; s
   // Persist live sessions as they run (not only on pagehide) so a crash keeps them.
   if (input.source !== 'scripted' && state.trace.length % 20 === 0) void saveTrace(state.trace).then(renderPlanner).catch(() => undefined);
   applyState(decision.state);
-  if (decision.distractionLogged) state.study.log('drift', `sim=${input.sim.toFixed(2)}`, decision.state);
+  if (decision.distractionLogged) {
+    state.study.log('drift', `sim=${input.sim.toFixed(2)}`, decision.state);
+    milestone('drift', 'Drift');
+  }
+  if (decision.nudge) milestone('nudge', 'Nudge');
   if (decision.nudge) {
     state.study.log('nudge', state.nudgeText, decision.state);
     state.voice.speak(state.nudgeText);
@@ -495,6 +550,7 @@ function startScenario(): void {
   state.scenarioStartedAt = Date.now();
   state.engine.resetRun(Date.now());
   state.trace = [];
+  state.milestones = state.checkpoint ? [{ t: Date.now(), kind: 'saved', label: `Saved ${state.checkpoint.problemId}` }] : [];
   state.selectedTrace = -1;
   state.firstEditLogged = false;
   state.restored = false;
@@ -538,6 +594,7 @@ function startLive(): void {
   state.livePort = port;
   state.engine.resetRun(Date.now());
   state.trace = [];
+  state.milestones = state.checkpoint ? [{ t: Date.now(), kind: 'saved', label: `Saved ${state.checkpoint.problemId}` }] : [];
   state.selectedTrace = -1;
   state.lastStateLog = '';
   state.study.log('mode', `${state.mode}; live`);
@@ -744,6 +801,7 @@ function prepareWorksheet(win: Window): void {
     state.checkpoint = checkpoint;
     state.lastResumeUrl = buildTextFragmentUrl(checkpoint.url, checkpoint);
     void saveCheckpoint(checkpoint);
+    milestone('saved', `Saved ${checkpoint.problemId}`);
     renderCheckpoint();
     dom.stepDrift.disabled = false;
     dom.demoStep.textContent =
@@ -816,10 +874,12 @@ async function resume(): Promise<void> {
       `<strong>Restore not verified.</strong> ${escapeHtml(result.reason)} · ${result.candidates} candidate(s) · ${result.attempts} attempt(s).` +
       `<span class="mono">${escapeHtml(childState)} · showing saved context instead of claiming a resume.</span>`;
     state.study.log('restore-failed', result.reason);
+    milestone('failed', result.reason === 'ambiguous' ? 'Ambiguous' : 'Not verified');
     showSavedContext(checkpoint, result.reason);
     return;
   }
   state.restored = true;
+  milestone('verified', 'Verified');
   dom.verifyStatus.dataset.kind = 'ok';
   dom.verifyStatus.innerHTML =
     `<strong>Verified restore.</strong> ${escapeHtml(landingNote(win, checkpoint))} ` +
@@ -927,6 +987,7 @@ function onAnswerInput(chars: number, newline: boolean): void {
     return;
   }
   state.firstEditLogged = true;
+  milestone('edit', 'First edit');
   dom.firstEditStatus.textContent = `First qualifying edit recorded at problem ${state.checkpoint?.problemId ?? '4b'} (${chars} new chars${newline ? ', newline' : ''}).`;
   state.study.log('first-edit', `chars=${chars}; newline=${newline}`, 'WRITING');
   toast('First qualifying edit recorded.', 'ok');
