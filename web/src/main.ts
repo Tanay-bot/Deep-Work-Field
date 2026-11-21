@@ -6,6 +6,7 @@ import { verifyCheckpointAsync } from '../../shared/src/verify';
 import { captureCheckpointFromElement, newId, pickAnchorElement } from '../../shared/src/checkpoint';
 import { embedText } from '../../shared/src/embed';
 import { matchScreen, type ScreenSample } from '../../shared/src/screen';
+import { focusByHour } from '../../shared/src/planner';
 import { correctionVote } from '../../shared/src/knn';
 import { FocusEngine, type EngineDecision } from '../../shared/src/engine';
 import './lib/fx';
@@ -23,6 +24,7 @@ import {
   saveSession,
   saveStudyRecord,
   saveTrace,
+  loadTraces,
   type StudyRecord,
 } from './lib/db';
 
@@ -417,6 +419,8 @@ function appendDecision(decision: EngineDecision, input: { screenText: string; s
   };
   state.trace.push(entry);
   state.selectedTrace = state.trace.length - 1;
+  // Persist live sessions as they run (not only on pagehide) so a crash keeps them.
+  if (input.source !== 'scripted' && state.trace.length % 20 === 0) void saveTrace(state.trace).then(renderPlanner).catch(() => undefined);
   applyState(decision.state);
   if (decision.distractionLogged) state.study.log('drift', `sim=${input.sim.toFixed(2)}`, decision.state);
   if (decision.nudge) {
@@ -1332,7 +1336,45 @@ function stopFace(): void {
   describeFace();
 }
 
+async function renderPlanner(): Promise<void> {
+  let entries: TraceEntry[] = [];
+  try {
+    const saved = await loadTraces();
+    const current = new Set(state.trace.map((e) => e.id));
+    entries = saved.flatMap((t) => t.entries ?? []).filter((e) => !current.has(e.id)).concat(state.trace);
+  } catch {
+    entries = state.trace;
+  }
+  const result = focusByHour(entries, 30 * 60 * 1000 / Math.max(100, state.thresholds.sessionTickMs * 2));
+  const bars = $('planner-bars');
+  const picks = new Set(result.suggestions.map((h) => h.hour));
+  bars.innerHTML = result.hours
+    .map((h) => `<i class="${h.samples ? 'has' : ''} ${picks.has(h.hour) ? 'pick' : ''}" style="height:${h.samples ? Math.max(6, Math.round(h.focus * 100)) : 3}%" title="${String(h.hour).padStart(2, '0')}:00 · ${h.samples} samples · ${Math.round(h.focus * 100)}% focused"></i>`)
+    .join('');
+  $('planner-count').textContent = `${result.totalSamples} samples`;
+  const fmt = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? 'am' : 'pm'}`;
+  $('planner-text').textContent = result.suggestions.length
+    ? `Suggested deep-work blocks: ${result.suggestions.map((h) => `${fmt(h.hour)}–${fmt((h.hour + 1) % 24)} (${Math.round(h.focus * 100)}% focused)`).join(', ')}. From live sessions only.`
+    : result.totalSamples
+      ? `${result.totalSamples} live samples so far. Suggestions appear once an hour has about 30 minutes of decided samples.`
+      : 'Your focus-by-hour curve builds from live sessions only (never the scripted demo). Start “Use my real screen” to collect it.';
+}
+
+function setupCapybara(): void {
+  let typed = '';
+  const svg = document.getElementById('capybara');
+  window.addEventListener('keydown', (event) => {
+    if ((event.target as HTMLElement).closest?.('input,textarea,select')) return;
+    typed = (typed + event.key.toLowerCase()).slice(-8);
+    if (!typed.endsWith('capybara') || !svg) return;
+    svg.classList.add('on');
+    window.setTimeout(() => svg.classList.remove('on'), 6000);
+  });
+}
+
 function setupLive(): void {
+  setupCapybara();
+  void renderPlanner();
   dom.faceStart.addEventListener('click', () => void startFace());
   dom.faceCalibrate.addEventListener('click', () => void calibrateFace());
   dom.faceStop.addEventListener('click', stopFace);

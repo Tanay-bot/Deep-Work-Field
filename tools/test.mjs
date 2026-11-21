@@ -17,6 +17,8 @@ const entry = `
   export * from '${root}/shared/src/checkpoint.ts';
   export * from '${root}/shared/src/fragments.ts';
   export { FocusEngine } from '${root}/shared/src/engine.ts';
+  export { focusByHour } from '${root}/shared/src/planner.ts';
+  export { matchScreen } from '${root}/shared/src/screen.ts';
   export { DEFAULT_THRESHOLDS } from '${root}/shared/src/config.ts';
 `;
 const bundle = await build({
@@ -157,6 +159,29 @@ await run('engine: one nudge per episode, even past the cooldown', '<p>x</p>', a
     if (d.nudge) nudges++;
   }
   return nudges === 1 || `nudged ${nudges} times in one episode`;
+});
+
+// 12. Planner: scripted demo data never counts; hours need enough samples.
+await run('planner: ignores scripted samples, suggests only well-sampled hours', '<p>x</p>', async () => {
+  const at = (h) => new Date(2026, 10, 21, h, 5).getTime();
+  const mk = (h, state, source) => ({ t: at(h), state, inputs: { source } });
+  const entries = [
+    ...Array.from({ length: 100 }, () => mk(9, 'FOCUSED', 'scripted')),
+    ...Array.from({ length: 80 }, (_, i) => mk(16, i < 60 ? 'FOCUSED' : 'DRIFTING', 'dom')),
+    ...Array.from({ length: 10 }, () => mk(20, 'FOCUSED', 'dom')),
+  ];
+  const r = DWF.focusByHour(entries, 50);
+  if (r.hours[9].samples !== 0) return 'scripted samples were counted';
+  if (r.suggestions.length !== 1 || r.suggestions[0].hour !== 16) return JSON.stringify(r.suggestions);
+  return Math.abs(r.suggestions[0].focus - 0.75) < 1e-9 || `focus ${r.suggestions[0].focus}`;
+});
+
+// 13. Live screen matcher: the saved page counts as on-task; distractions don't.
+await run('screen matcher: goal-term coverage and saved-page context', '<p>x</p>', async () => {
+  const goal = 'AP Chem unit 4 limiting reagent';
+  const sheet = DWF.matchScreen(goal, { url: 'https://a.test/ws.html#x', title: 'Worksheet', text: 'Problem 6', restricted: false, t: 0 }, { docId: 'https://a.test/ws.html', anchor: '4b' });
+  const fun = DWF.matchScreen(goal, { url: 'https://yt.test/v', title: 'Minecraft parkour', text: 'best jumps', restricted: false, t: 0 }, null);
+  return (sheet.sim >= 0.8 && fun.sim === 0) || JSON.stringify({ sheet, fun });
 });
 
 // 11. Chrome's own scroll-to-text must land the right 4b — no app scrolling.

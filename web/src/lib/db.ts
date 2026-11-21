@@ -13,25 +13,40 @@ export interface StudyRecord {
 }
 
 const DB_NAME = 'deep-work-field';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 export type StoreName = 'checkpoints' | 'sessions' | 'trace' | 'corrections' | 'study';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
+  const opening = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       for (const name of ['checkpoints', 'sessions', 'trace', 'corrections', 'study'] as StoreName[]) {
         if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: 'id' });
       }
+      const corrections = request.transaction?.objectStore('corrections');
+      if (corrections && !corrections.indexNames.contains('goal')) corrections.createIndex('goal', 'goal');
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error('The database is open in another tab with an older version.'));
+  }).catch((error) => {
+    // Do not cache a failed open; the next call retries.
+    dbPromise = null;
+    throw error;
   });
-  return dbPromise;
+  dbPromise = opening;
+  return opening;
 }
 
 async function withStore<T>(name: StoreName, mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
@@ -39,8 +54,10 @@ async function withStore<T>(name: StoreName, mode: IDBTransactionMode, fn: (stor
   return new Promise<T>((resolve, reject) => {
     const tx = db.transaction(name, mode);
     const request = fn(tx.objectStore(name));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    // Resolve only when the transaction has committed, so "Saved" is true.
+    tx.oncomplete = () => resolve(request.result);
+    tx.onerror = () => reject(tx.error ?? request.error);
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted (storage full?)'));
   });
 }
 
@@ -81,8 +98,12 @@ export async function saveCorrection(correction: Correction): Promise<void> {
 }
 
 export async function loadCorrections(goal?: string): Promise<Correction[]> {
-  const all = await getAll<Correction>('corrections');
-  return goal ? all.filter((c) => c.goal === goal) : all;
+  if (!goal) return getAll<Correction>('corrections');
+  return withStore<Correction[]>('corrections', 'readonly', (s) => s.index('goal').getAll(goal) as IDBRequest<Correction[]>);
+}
+
+export async function loadTraces(): Promise<{ id: string; entries: TraceEntry[] }[]> {
+  return getAll<{ id: string; entries: TraceEntry[] }>('trace');
 }
 
 export async function saveStudyRecord(record: StudyRecord): Promise<void> {

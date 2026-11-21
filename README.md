@@ -141,7 +141,9 @@ ablation-style record of decisions logged while corrections were active, not a c
 - **Kokoro**: not bundled; nudges use device `speechSynthesis`.
 - **Tesseract OCR**: not shipped. DOM text only.
 - **PDF.js route**: `extension/pdf/` is a deliberate Phase 6 stub; there is no fake viewer.
-- **Planner / capybara constellation**: not shipped (Phase 6).
+- **Planner (shipped)**: focus-by-hour curve from saved *live* sessions only (scripted demo samples
+  are excluded); an hour is suggested only after ~30 minutes of decided samples.
+- **Capybara constellation (shipped)**: type `capybara` anywhere outside a text field.
 - **Fixed extension ID**: `manifest.json` carries a public `key`, so every unpacked install has the
   ID `ebcoijhkmohgagkgkaaafhjkffcjcchn` and the web app connects without pasting anything. The site's
   origin must still be listed in `externally_connectable`.
@@ -178,7 +180,7 @@ production URL. Add any custom domain there before using the bridge.
 ### Automated checks
 
 ```bash
-npm test                      # 10 Chromium checks on shared/ capture, verify, fragments, engine
+npm test                      # 13 Chromium checks on shared/ capture, verify, fragments, engine
 npm run build:extension && npm run dev   # then, in another shell:
 node tools/extension-e2e.mjs  # loads the unpacked extension, saves 4b, runs two restores at once
 ```

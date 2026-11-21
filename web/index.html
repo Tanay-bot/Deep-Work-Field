@@ -341,6 +341,14 @@
             <button id="face-stop" class="btn small ghost" type="button" hidden>Turn off</button>
           </div>
         </div>
+        <div class="card planner-card">
+          <div class="card-head">
+            <p class="section-kicker">Planner</p>
+            <span class="pill tiny" id="planner-count">0 samples</span>
+          </div>
+          <div id="planner-bars" class="planner-bars" aria-hidden="true"></div>
+          <p id="planner-text" class="muted small">Your focus-by-hour curve builds from live sessions only (never the scripted demo). An hour needs about 30 minutes of decided samples before it is suggested.</p>
+        </div>
         <div class="card corrections-card">
           <div class="card-head">
             <p class="section-kicker">Correction memory</p>
@@ -467,6 +475,7 @@
 </dialog>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<svg id="capybara" class="capybara" viewBox="0 0 400 260" aria-hidden="true"><polyline points="40,170 52,128 88,100 150,88 230,86 292,92 330,104 352,88 370,92 376,112 362,132 360,158 340,176 318,182 312,214 296,214 292,186 150,190 144,218 128,218 124,190 78,188 60,214 46,214 48,186 40,170" /><g><circle cx="40" cy="170" r="3"/><circle cx="88" cy="100" r="2.5"/><circle cx="150" cy="88" r="3.5"/><circle cx="230" cy="86" r="2.5"/><circle cx="292" cy="92" r="3"/><circle cx="352" cy="88" r="2.5"/><circle cx="370" cy="92" r="2"/><circle cx="362" cy="132" r="2.5"/><circle cx="355" cy="112" r="4" class="eye"/><circle cx="318" cy="182" r="2.5"/><circle cx="296" cy="214" r="2"/><circle cx="144" cy="218" r="2"/><circle cx="78" cy="188" r="2.5"/><circle cx="46" cy="214" r="2"/></g><text x="200" y="248">Hydrochoerus hydrochaeris · the calmest constellation</text></svg>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

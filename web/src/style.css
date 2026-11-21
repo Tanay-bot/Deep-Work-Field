@@ -721,3 +721,16 @@ a.dl::before { content: '↓ '; }
 .face-preview { position: relative; margin: 4px 0 14px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line-strong); aspect-ratio: 4 / 3; background: #000; }
 .face-preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; filter: saturate(0.6) contrast(1.05); }
 .face-preview::after { content: 'on-device'; position: absolute; left: 10px; top: 10px; font-family: var(--mono); font-size: 10px; color: var(--ink); background: var(--amber); padding: 2px 8px; border-radius: 999px; }
+
+.planner-bars { display: grid; grid-template-columns: repeat(24, 1fr); align-items: end; gap: 2px; height: 64px; margin: 4px 0 12px; }
+.planner-bars i { display: block; background: var(--line-strong); border-radius: 2px 2px 0 0; min-height: 2px; position: relative; }
+.planner-bars i.has { background: linear-gradient(var(--amber), rgba(255, 181, 71, 0.25)); }
+.planner-bars i.pick { box-shadow: 0 0 10px var(--amber); background: var(--amber); }
+.capybara { position: fixed; inset: 0; margin: auto; width: min(640px, 90vw); height: auto; z-index: 70; pointer-events: none; opacity: 0; transition: opacity 1.2s var(--ease-out); }
+.capybara.on { opacity: 1; }
+.capybara polyline { fill: none; stroke: rgba(255, 181, 71, 0.5); stroke-width: 1.2; stroke-dasharray: 2000; stroke-dashoffset: 2000; }
+.capybara.on polyline { animation: capy-draw 2.4s var(--ease-out) forwards; }
+.capybara circle { fill: #fff3dc; filter: drop-shadow(0 0 6px #ffb547); }
+.capybara .eye { fill: var(--amber); }
+.capybara text { fill: var(--bone-2); font-family: var(--mono); font-size: 10px; text-anchor: middle; letter-spacing: 0.1em; }
+@keyframes capy-draw { to { stroke-dashoffset: 0; } }

@@ -47,7 +47,8 @@ locally and can override later calls only on a 4-of-5 supermajority.
 - **Voice** uses the browser's on-device speech synthesis.
 - **Galaxy** is a WebGL2 shader point cloud whose four shapes morph on the GPU with the focus state,
   plus a Document Picture-in-Picture mini-galaxy.
-- **Tests**: `npm test` runs 11 checks in Chromium (duplicate headings, identical-context ambiguity,
+- **Planner**: a focus-by-hour curve from your live sessions suggests deep-work blocks.
+- **Tests**: `npm test` runs 13 checks in Chromium (duplicate headings, identical-context ambiguity,
   selection capture, inline markup, Unicode, Chrome's native fragment landing, engine timing);
   `tools/extension-e2e.mjs` loads the unpacked extension and runs two restores at once.
 
