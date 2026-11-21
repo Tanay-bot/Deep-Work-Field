@@ -29,7 +29,9 @@
       "https://*.style.dev/*",
       "https://deep-work-field-ikbno6-preview.freebuff.site/*",
       "https://deep-work-field-ikbno6.freebuff.site/*",
-      "https://*.freebuff.com/*"
+      "https://*.freebuff.com/*",
+      "https://deep-work-field.vercel.app/*",
+      "https://deep-work-field-tanay-bot.vercel.app/*"
     ]
   },
   "web_accessible_resources": [
