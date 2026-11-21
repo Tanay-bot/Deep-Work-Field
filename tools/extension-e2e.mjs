@@ -89,6 +89,57 @@ for (const p of context.pages()) {
   if (!ok) fail(`tab landed wrong: ${JSON.stringify(where)}`);
   else console.log(`✓ restore tab shows Part II 4b (top ${where.problemTop}px), answer key offscreen (${where.keyTop}px)`);
 }
+// A stale verification reply (wrong restoreId) must be ignored, not recorded.
+{
+  const started = await panel.evaluate((cid) => chrome.runtime.sendMessage({ type: 'DWF_RESTORE_FROM_POPUP', id: cid }), id);
+  const tabs = await panel.evaluate(() => chrome.tabs.query({}));
+  const restoreTab = tabs[tabs.length - 1];
+  const stale = await panel.evaluate(
+    (tabId) =>
+      chrome.scripting
+        .executeScript({
+          target: { tabId },
+          func: () => chrome.runtime.sendMessage({ type: 'DWF_VERIFY_RESULT', restoreId: 'rs_stale_old', checkpointId: 'x', result: { ok: false, reason: 'no-match', candidates: 0, attempts: 1 } }),
+        })
+        .then((r) => r[0]?.result),
+    restoreTab.id,
+  );
+  if (!stale?.stale) fail(`stale reply was not rejected: ${JSON.stringify(stale)}`);
+  await new Promise((r) => setTimeout(r, 4000));
+  const after = await panel.evaluate(() => chrome.storage.local.get('dwf:lastResult'));
+  const lr = after['dwf:lastResult'];
+  if (lr?.restoreId !== started.restoreId || lr?.status !== 'verified') fail(`after a stale reply, last result was ${JSON.stringify(lr)}`);
+  else console.log('✓ stale verify reply ignored; the real restore still verified');
+}
+
+// Hash-routed page: the app's own hash survives save → restore.
+{
+  const routed = worksheetHtml => worksheetHtml;
+  await context.route('https://hashapp.test/**', async (r) => {
+    const res = await fetch(`${base}/demo/worksheet-a.html`);
+    r.fulfill({ contentType: 'text/html', body: routed(await res.text()) });
+  });
+  const app3 = await context.newPage();
+  await app3.goto('https://hashapp.test/course#/lesson/4');
+  await app3.evaluate(() => {
+    const h = document.querySelector('[data-problem-id="4b"] h3');
+    h.scrollIntoView({ block: 'center' });
+    const r = document.createRange();
+    r.selectNodeContents(h);
+    getSelection().removeAllRanges();
+    getSelection().addRange(r);
+  });
+  await app3.bringToFront();
+  const saved2 = await panel.evaluate(() => chrome.runtime.sendMessage({ type: 'DWF_SAVE_CHECKPOINT_FROM_POPUP', goal: 'AP Chem' }));
+  await app3.close();
+  const r2 = await panel.evaluate((cid) => chrome.runtime.sendMessage({ type: 'DWF_RESTORE_FROM_POPUP', id: cid }), saved2?.checkpoint?.id);
+  await new Promise((r) => setTimeout(r, 4000));
+  const lr = (await panel.evaluate(() => chrome.storage.local.get('dwf:lastResult')))['dwf:lastResult'];
+  const keptHash = /^https:\/\/hashapp\.test\/course#\/lesson\/4:~:text=/.test(r2?.url ?? '');
+  if (!keptHash || lr?.status !== 'verified') fail(`hash route lost or not verified: ${r2?.url} → ${lr?.status}`);
+  else console.log(`✓ hash-routed page restored with its route kept (#/lesson/4) and verified (${lr.landing})`);
+}
+
 if (process.env.DWF_POPUP_SHOT) {
   await panel.setViewportSize({ width: 360, height: 560 });
   await panel.reload();

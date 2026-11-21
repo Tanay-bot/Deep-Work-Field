@@ -87,7 +87,8 @@ function buildCheckpoint(
     id: newId('cp'),
     createdAt: Date.now(),
     goal: options.goal ?? '',
-    url: view.location.href.split('#')[0],
+    // Keep the page's own hash (hash-routed apps put the page there); drop only a text directive.
+    url: view.location.href.split(':~:')[0].replace(/#$/, ''),
     docId: `${view.location.origin}${view.location.pathname}`,
     problemId,
     anchor,

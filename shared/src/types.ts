@@ -10,7 +10,7 @@ export interface Checkpoint {
   id: string;
   createdAt: number;
   goal: string;
-  /** URL with the hash removed. */
+  /** Page URL including its own hash (hash routers), without any text-fragment directive. */
   url: string;
   /** Canvas/document identity, e.g. origin + pathname. */
   docId: string;
