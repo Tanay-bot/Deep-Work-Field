@@ -712,12 +712,18 @@ function startLive(): void {
       : 'Live: reading your active tab through the extension. Switch to another tab to see the field react; come back to the worksheet to recover.';
   dom.liveStatus.textContent = 'Live · waiting for the first sample from your active tab…';
   renderTrace();
-  void loadSemantic((label) => (dom.liveStatus.textContent = `Live · ${label}`)).catch(() => {
+  liveScored = false;
+  // Model-loading messages only until the first real sample is scored; after
+  // that the status line belongs to the live readout.
+  void loadSemantic((label) => {
+    if (!liveScored) dom.liveStatus.textContent = `Live · ${label}`;
+  }).catch(() => {
     dom.liveStatus.textContent = 'Live · the semantic matcher could not load here; using goal-term coverage only.';
   });
 }
 
 let liveBusy = false;
+let liveScored = false;
 
 function stopLive(silent = false, reason = ''): void {
   const port = state.livePort;
@@ -784,6 +790,7 @@ async function scoreScreen(sample: ScreenSample, source: 'dom' | 'ocr', where: s
       source,
     });
     appendDecision(decision, { screenText, sim, face, source }, `${where}: ${reason}.`);
+    liveScored = true;
     dom.liveStatus.textContent = `${source === 'ocr' ? 'OCR' : 'Live'} · ${where} · ${reason} · ${decision.state}`;
   } catch {
     /* a failed sample must not stop the stream; the next one retries */
