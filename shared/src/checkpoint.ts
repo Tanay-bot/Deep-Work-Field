@@ -40,6 +40,34 @@ function wordContext(index: TextIndex, start: number, end: number): { prefix: st
   return { prefix, suffix };
 }
 
+/** Block-local terms for the browser's text fragment (see Checkpoint.fragment). */
+function fragmentTerms(index: TextIndex, start: number, end: number): NonNullable<Checkpoint['fragment']> {
+  const words = (t: string, n: number, fromEnd: boolean) => {
+    const parts = t.trim().split(' ').filter(Boolean);
+    return (fromEnd ? parts.slice(-n) : parts.slice(0, n)).join(' ');
+  };
+  const breaksIn = (a: number, b: number) => [...index.breaks].filter((i) => i >= a && i < b).sort((x, y) => x - y);
+  // Prefix: the block segment just before the anchor.
+  let pEnd = start;
+  while (pEnd > 0 && index.text[pEnd - 1] === ' ') pEnd--;
+  const before = breaksIn(0, pEnd);
+  const prefix = words(index.text.slice(before.length ? before[before.length - 1] + 1 : 0, pEnd), 6, true);
+  // Suffix: the block segment just after.
+  let sStart = end;
+  while (sStart < index.text.length && index.text[sStart] === ' ') sStart++;
+  const after = breaksIn(sStart, index.text.length);
+  const suffix = words(index.text.slice(sStart, after.length ? after[0] : index.text.length), 6, false);
+  // Anchor: one term if it fits in a block, else textStart,textEnd.
+  const inner = breaksIn(start, end);
+  if (inner.length === 0) return { prefix, start: index.text.slice(start, end), suffix };
+  return {
+    prefix,
+    start: words(index.text.slice(start, inner[0]), 6, false),
+    end: words(index.text.slice(inner[inner.length - 1] + 1, end), 6, true),
+    suffix,
+  };
+}
+
 function buildCheckpoint(
   doc: Document,
   index: TextIndex,
@@ -69,6 +97,7 @@ function buildCheckpoint(
     selectorHint: problemHost ? `[data-problem-id="${problemHost.dataset.problemId}"]` : undefined,
     savedFrame: options.savedFrame,
     answerRegion: options.answerRegion,
+    fragment: fragmentTerms(index, start, end),
   };
 }
 

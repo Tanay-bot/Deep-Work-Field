@@ -715,3 +715,5 @@ details.advanced[open] > *:not(summary) { margin-top: 12px; }
 .galaxy-card .galaxy-state { text-transform: lowercase; }
 .galaxy-card .galaxy-state::first-letter { text-transform: uppercase; }
 .demo-controls .section-kicker { letter-spacing: 0.22em; }
+a.dl { color: var(--amber); font-weight: 600; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a.dl::before { content: '↓ '; }

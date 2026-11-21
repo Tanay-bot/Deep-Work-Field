@@ -124,11 +124,13 @@ async function restoreCheckpoint(id: string): Promise<{ ok: boolean; error?: str
   const checkpoint = list.find((item) => item.id === id);
   if (!checkpoint) return { ok: false, error: 'Checkpoint not found.' };
   const url = buildTextFragmentUrl(checkpoint.url, checkpoint);
-  // Open a blank tab first and register the operation BEFORE navigating, so
-  // even a very fast page finds its own pending restore when it asks.
+  // Open the fragment URL directly: Chrome only runs scroll-to-text on a
+  // fresh browser navigation, not on a later update of a blank tab. The page
+  // cannot reach document_idle before this registration lands, and the
+  // content script also retries briefly, so it always finds its own restore.
   let tab: any;
   try {
-    tab = await chrome.tabs.create({ url: 'about:blank', active: true });
+    tab = await chrome.tabs.create({ url, active: true });
   } catch (error) {
     return { ok: false, error: 'Could not open a tab for the restore.' };
   }
@@ -142,12 +144,6 @@ async function restoreCheckpoint(id: string): Promise<{ ok: boolean; error?: str
       [KEYS.lastResult]: { checkpointId: id, restoreId: op.restoreId, status: 'pending', at: Date.now() },
     });
   });
-  try {
-    await chrome.tabs.update(tab.id, { url });
-  } catch {
-    await settlePending(tab.id, op.restoreId);
-    return { ok: false, error: 'Could not navigate the restore tab.' };
-  }
   return { ok: true, url, restoreId: op.restoreId } as { ok: boolean; url: string; restoreId: string };
 }
 

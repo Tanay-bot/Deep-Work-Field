@@ -30,7 +30,7 @@ const bundle = await build({
 const lib = bundle.outputFiles[0].text;
 const worksheet = readFileSync(resolve(root, 'demo/worksheet-a.html'), 'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g, '');
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ channel: 'chromium' });
 const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
 let failed = 0;
 const results = [];
@@ -158,6 +158,35 @@ await run('engine: one nudge per episode, even past the cooldown', '<p>x</p>', a
   }
   return nudges === 1 || `nudged ${nudges} times in one episode`;
 });
+
+// 11. Chrome's own scroll-to-text must land the right 4b — no app scrolling.
+{
+  const name = 'native text fragment: Chrome itself lands Part II 4b (block-local terms)';
+  try {
+    const native = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+    await native.route('https://dwf.test/**', (route) => route.fulfill({ contentType: 'text/html', body: worksheet }));
+    await native.goto('https://dwf.test/worksheet.html');
+    await native.addScriptTag({ content: lib });
+    const url = await native.evaluate(() => {
+      const cp = DWF.captureCheckpointFromElement(document, document.querySelector('[data-problem-id="4b"] h3'), {});
+      return DWF.buildTextFragmentUrl(location.href, cp);
+    });
+    await native.goto('about:blank');
+    await native.goto(url);
+    await native.waitForTimeout(1200);
+    const where = await native.evaluate(() => {
+      const top = (sel) => Math.round(document.querySelector(sel).getBoundingClientRect().top);
+      return { y: Math.round(scrollY), problem: top('[data-problem-id="4b"] h3'), key: top('[data-problem-id="4b-key"] h3'), vh: innerHeight };
+    });
+    await native.close();
+    const ok = where.y > 0 && where.problem >= 0 && where.problem < where.vh && !(where.key >= 0 && where.key < where.vh);
+    if (!ok) throw new Error(`${url.split('#')[1]} → ${JSON.stringify(where)}`);
+    results.push(`  ✓ ${name}`);
+  } catch (error) {
+    failed++;
+    results.push(`  ✗ ${name}\n      ${String(error.message ?? error).split('\n')[0]}`);
+  }
+}
 
 await browser.close();
 console.log(results.join('\n'));

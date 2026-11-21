@@ -9,6 +9,8 @@ export interface TextIndexEntry {
 export interface TextIndex {
   text: string;
   map: TextIndexEntry[];
+  /** Positions of the separator spaces inserted at block boundaries. */
+  breaks: Set<number>;
 }
 
 const SKIP_TAGS = new Set([
@@ -35,8 +37,9 @@ const BLOCK_TAGS = new Set([
 export function buildTextIndex(root: Document | Element): TextIndex {
   const doc = root.nodeType === 9 ? (root as Document) : (root as Element).ownerDocument;
   const map: TextIndexEntry[] = [];
+  const breaks = new Set<number>();
   let text = '';
-  if (!doc) return { text, map };
+  if (!doc) return { text, map, breaks };
   const view = doc.defaultView;
   const blockCache = new Map<Element, Element>();
   const hiddenCache = new Map<Element, boolean>();
@@ -85,9 +88,13 @@ export function buildTextIndex(root: Document | Element): TextIndex {
     const parent = tn.parentElement;
     if (!parent) continue;
     const block = blockOf(parent);
-    if (text.length > 0 && !text.endsWith(' ') && previousBlock !== null && block !== previousBlock) {
-      text += ' ';
-      map.push({ node: tn, offset: 0 });
+    if (text.length > 0 && previousBlock !== null && block !== previousBlock) {
+      if (text.endsWith(' ')) breaks.add(text.length - 1);
+      else {
+        breaks.add(text.length);
+        text += ' ';
+        map.push({ node: tn, offset: 0 });
+      }
     }
     const data = tn.data;
     for (let i = 0; i < data.length; i++) {
@@ -104,7 +111,7 @@ export function buildTextIndex(root: Document | Element): TextIndex {
     }
     if (data.trim()) previousBlock = block;
   }
-  return { text, map };
+  return { text, map, breaks };
 }
 
 export function rangeFor(index: TextIndex, start: number, end: number): Range | null {

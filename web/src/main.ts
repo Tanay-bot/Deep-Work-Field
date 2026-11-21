@@ -34,6 +34,9 @@ const STORAGE = {
 };
 
 const DEMO_GOAL = 'AP Chem unit 4 limiting reagent';
+/** Pinned by the `key` in extension/manifest.json, so every unpacked install has this ID. */
+export const EXTENSION_ID = 'ebcoijhkmohgagkgkaaafhjkffcjcchn';
+const extensionId = (): string => localStorage.getItem(STORAGE.extensionId) || EXTENSION_ID;
 
 function $(id: string): HTMLElement {
   const node = document.getElementById(id);
@@ -1313,15 +1316,17 @@ async function handleUpload(file: File): Promise<void> {
 
 function setupExtensionBridge(): void {
   dom.extId.value = localStorage.getItem(STORAGE.extensionId) ?? '';
+  dom.extId.placeholder = `${EXTENSION_ID} (default)`;
+  // Re-check when the user comes back from chrome://extensions.
+  window.addEventListener('focus', () => void pingExtension());
   dom.extCheck.addEventListener('click', () => {
     const id = dom.extId.value.trim();
-    localStorage.setItem(STORAGE.extensionId, id);
+    if (id) localStorage.setItem(STORAGE.extensionId, id);
+    else localStorage.removeItem(STORAGE.extensionId);
     void pingExtension().then((connected) => {
       dom.extResult.textContent = connected
         ? 'Connected. The extension can save and restore checkpoints on third-party pages.'
-        : id
-          ? 'No reply. Check the ID, that the extension is enabled, and that this origin is in externally_connectable.'
-          : 'Paste the extension ID first.';
+        : 'No reply yet. Check the extension is loaded and enabled in chrome://extensions. If this site is not localhost or the published demo, its address must be listed in externally_connectable.';
     });
   });
   void pingExtension();
@@ -1329,7 +1334,7 @@ function setupExtensionBridge(): void {
 
 function pingExtension(): Promise<boolean> {
   const chromeApi = (globalThis as unknown as { chrome?: ChromeLike }).chrome;
-  const id = localStorage.getItem(STORAGE.extensionId) ?? '';
+  const id = extensionId();
   if (!chromeApi?.runtime?.sendMessage || !id) {
     setExtensionStatus(false);
     return Promise.resolve(false);
@@ -1352,9 +1357,10 @@ function pingExtension(): Promise<boolean> {
 function setExtensionStatus(connected: boolean): void {
   state.extensionConnected = connected;
   dom.extensionStatus.textContent = connected ? 'Extension: connected' : 'Extension: not linked';
+  if (connected) dom.extResult.textContent = 'Connected. The extension can save and restore checkpoints on other sites.';
   dom.extensionStatus.title = connected
     ? 'External messaging bridge answered.'
-    : 'Install the extension and paste its ID in Settings; the hosted demo works without it.';
+    : 'Install the extension (Get the extension); the hosted demo works without it.';
 }
 
 function setupDialogs(): void {

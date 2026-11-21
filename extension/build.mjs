@@ -1,3 +1,5 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { build } from 'esbuild';
 import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -31,18 +33,28 @@ for (const file of ['manifest.json', 'popup.html', 'popup.css']) {
 }
 cpSync(resolve(here, 'pdf'), resolve(out, 'pdf'), { recursive: true });
 
+// The zip holds one top-level folder, so "unzip → Load unpacked → pick the folder" just works.
+// A copy is published with the web app so judges can download it from the demo site.
 const zipName = resolve(root, 'extension', 'deep-work-field-extension.zip');
+const publicZip = resolve(root, 'web', 'public', 'deep-work-field-extension.zip');
+const stage = mkdtempSync(resolve(tmpdir(), 'dwf-zip-'));
+cpSync(out, resolve(stage, 'deep-work-field-extension'), { recursive: true });
 rmSync(zipName, { force: true });
 try {
-  execFileSync('zip', ['-qr', zipName, '.'], { cwd: out, stdio: 'ignore' });
+  execFileSync('zip', ['-qrX', zipName, 'deep-work-field-extension'], { cwd: stage, stdio: 'ignore' });
   console.log(`zip: ${zipName}`);
 } catch {
   try {
-    execFileSync('python3', ['-m', 'zipfile', '-c', zipName, '.'], { cwd: out, stdio: 'ignore' });
+    execFileSync('python3', ['-m', 'zipfile', '-c', zipName, 'deep-work-field-extension'], { cwd: stage, stdio: 'ignore' });
     console.log(`zip (python): ${zipName}`);
   } catch {
     console.log('zip not created (no zip or python3). Load extension/dist unpacked.');
   }
+}
+rmSync(stage, { recursive: true, force: true });
+if (existsSync(zipName)) {
+  cpSync(zipName, publicZip);
+  console.log(`published: ${publicZip}`);
 }
 
 if (!existsSync(resolve(out, 'background.js'))) {

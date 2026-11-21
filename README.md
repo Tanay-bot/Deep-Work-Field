@@ -134,6 +134,9 @@ ablation-style record of decisions logged while corrections were active, not a c
 - **Tesseract OCR**: not shipped. DOM text only.
 - **PDF.js route**: `extension/pdf/` is a deliberate Phase 6 stub; there is no fake viewer.
 - **Planner / capybara constellation**: not shipped (Phase 6).
+- **Fixed extension ID**: `manifest.json` carries a public `key`, so every unpacked install has the
+  ID `ebcoijhkmohgagkgkaaafhjkffcjcchn` and the web app connects without pasting anything. The site's
+  origin must still be listed in `externally_connectable`.
 - **Extension → fusion loop**: the extension performs DOM capture, fragment restore, verification and
   first-edit detection. It does not yet stream its signals into the hosted app’s fusion loop.
 - **Data**: no accounts, backend, analytics, or network calls for detection. The hosted page does use a
@@ -149,10 +152,11 @@ network.
 
 ## Extension install
 
-1. `npm install && npm run build:extension`
-2. Unzip `extension/deep-work-field-extension.zip` into a folder (or use `extension/dist`).
+1. Download `deep-work-field-extension.zip` from the hosted site (**Get the extension**) or from
+   `web/public/` in this repo — or build it: `npm install && npm run build:extension`.
+2. Unzip it; it contains one folder, `deep-work-field-extension/` (or use `extension/dist`).
 3. `chrome://extensions` → Developer mode → **Load unpacked** → select the folder with `manifest.json`.
-4. Copy the extension ID into the web app’s **Get the extension** dialog and press **Check**.
+4. Return to the web app; it connects on its own (fixed ID). The ID field is only under **Advanced**.
 5. On a worksheet tab, select the passage or scroll to the heading, open the popup, set the goal and
    press **Save checkpoint on this tab**. **Restore** opens a new tab with the fragment; the content
    script verifies it and shows either “Verified restore” or “Saved context only”.

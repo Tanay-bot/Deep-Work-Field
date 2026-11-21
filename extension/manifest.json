@@ -3,8 +3,16 @@
   "name": "Deep Work Field",
   "version": "1.0.0",
   "description": "On-device checkpoints and verified restore for study pages. No accounts, no cloud AI.",
-  "permissions": ["tabs", "activeTab", "scripting", "storage"],
-  "host_permissions": ["<all_urls>"],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu2LDAU819EyywIFGpNsSOoglY8A2U6/GaPhmqfSeXZcwp5wgDB8T0JSBy1/hXugA2fVcXhzAlGN1wmmRDb0jjGr7r8+mnn7SsIIrRnF5hSCubxvGdl8lJHtW0KkmJ5kW2UcB31PJIfgVTU6U+zQEGiX0PtB7qqPZjSJpNQVNVW++DNERZX2QZXzQsf732Btn7WZh+kSQo/BUQmHQk7KrMDh7Kp1Dgw/aY/zD8QMXakJgPq912FjUwLF3yK+C52f7hz7DdPEKMhYRayx/BS1ZstPLFnsVWgWJBwDgwLXHR3/qvMFWZjP03/uSzUOBx3DjNCMAjHt/pebPZOi9fMmb8QIDAQAB",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -15,8 +23,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
@@ -33,8 +45,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["pdf/viewer.html"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "pdf/viewer.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

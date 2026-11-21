@@ -28,6 +28,14 @@ const fail = (msg) => {
   process.exitCode = 1;
 };
 
+const app = await context.newPage();
+await app.goto(`${base}/`, { waitUntil: 'load' });
+await app.waitForFunction(() => /connected/.test(document.getElementById('extension-status')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
+const status = await app.textContent('#extension-status');
+if (!/connected/.test(status ?? '')) fail(`web app did not connect to the pinned extension ID: "${status}"`);
+else console.log(`✓ web app connected with no ID pasted ("${status}")`);
+await app.close();
+
 const sheet = await context.newPage();
 await sheet.goto(`${base}/demo/worksheet-a.html`, { waitUntil: 'load' });
 await sheet.evaluate(() => {

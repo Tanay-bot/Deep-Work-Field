@@ -23,19 +23,26 @@ export function normalizePassage(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/** Chrome scrolls to `#:~:text=prefix-,start,-suffix` on a real navigation. */
-export function buildTextFragmentUrl(baseUrl: string, checkpoint: Pick<Checkpoint, 'anchor' | 'prefix' | 'suffix'>): string {
+/**
+ * Chrome scrolls to `#:~:text=prefix-,start[,end],-suffix` on a real
+ * navigation. Each term must sit inside one block, so a checkpoint's
+ * block-local `fragment` terms are used when present; otherwise the stored
+ * prefix/suffix are trimmed to a few words as a best effort.
+ */
+export function buildTextFragmentUrl(baseUrl: string, checkpoint: Pick<Checkpoint, 'anchor' | 'prefix' | 'suffix' | 'fragment'>): string {
   const anchor = normalizePassage(checkpoint.anchor);
-  if (!anchor) return baseUrl.split('#')[0];
-  const prefix = normalizePassage(checkpoint.prefix);
-  const suffix = normalizePassage(checkpoint.suffix);
-  const parts: string[] = [];
-  if (prefix) parts.push(`${encodeFragmentTerm(prefix)}-`);
-  parts.push(encodeFragmentTerm(anchor));
-  if (suffix) parts.push(`-${encodeFragmentTerm(suffix)}`);
-  // Keep an app's own hash (hash routers) and append the directive after it.
   const [base, hash = ''] = baseUrl.split('#');
   const ownHash = hash.split(':~:')[0];
+  if (!anchor) return ownHash ? `${base}#${ownHash}` : base;
+  const tail = (t: string) => normalizePassage(t).split(' ').filter(Boolean).slice(-6).join(' ');
+  const head = (t: string) => normalizePassage(t).split(' ').filter(Boolean).slice(0, 6).join(' ');
+  const f = checkpoint.fragment ?? { prefix: tail(checkpoint.prefix), start: anchor, suffix: head(checkpoint.suffix) };
+  const parts: string[] = [];
+  if (f.prefix) parts.push(`${encodeFragmentTerm(normalizePassage(f.prefix))}-`);
+  parts.push(encodeFragmentTerm(normalizePassage(f.start)));
+  if (f.end) parts.push(encodeFragmentTerm(normalizePassage(f.end)));
+  if (f.suffix) parts.push(`-${encodeFragmentTerm(normalizePassage(f.suffix))}`);
+  // Keep an app's own hash (hash routers) and append the directive after it.
   return `${base}#${ownHash}:~:text=${parts.join(',')}`;
 }
 

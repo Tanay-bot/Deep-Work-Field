@@ -27,6 +27,12 @@ export interface Checkpoint {
   savedFrame?: string;
   /** The answer region text that qualified at capture time, if any. */
   answerRegion?: string;
+  /**
+   * Terms for the browser's scroll-to-text URL. Chrome requires each term to
+   * sit inside one block, so these are block-local slices of prefix/anchor/
+   * suffix; `end` is set when the anchor itself spans blocks.
+   */
+  fragment?: { prefix: string; start: string; end?: string; suffix: string };
 }
 
 export interface FaceCue {

@@ -149,11 +149,11 @@
         <p class="section-kicker">Install</p>
         <h2>Extension in <em>three</em> steps</h2>
         <ol class="install-steps">
-          <li>Build the extension: <code>npm run build:extension</code>.</li>
-          <li>Chrome → <code>chrome://extensions</code> → Developer mode → Load unpacked → <code>extension/dist</code>.</li>
-          <li>Copy the extension ID into the extension setup dialog here so the page can talk to it.</li>
+          <li><a class="dl" href="deep-work-field-extension.zip" download>Download the extension (.zip)</a> and unzip it.</li>
+          <li>Open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, click <strong>Load unpacked</strong> and pick the <code>deep-work-field-extension</code> folder.</li>
+          <li>Come back here. The status in the top bar changes to <strong>connected</strong>; there is no ID to paste.</li>
         </ol>
-        <p class="micro">The web app ↔ extension bridge uses <code>chrome.runtime.sendMessage</code> with <code>externally_connectable</code>, not page injection.</p>
+        <p class="micro">Not in the Chrome Web Store yet, so Chrome loads it in Developer mode. The page talks to it only through <code>chrome.runtime.sendMessage</code> with <code>externally_connectable</code>, no page injection. Also on <a href="https://github.com/Tanay-bot/Deep-Work-Field/raw/main/web/public/deep-work-field-extension.zip">GitHub</a>.</p>
         <button id="extension-btn-2" class="btn small" type="button">Open setup steps →</button>
       </article>
     </section>
@@ -433,15 +433,18 @@
       <button class="icon-btn" data-close="extension-dialog" aria-label="Close">×</button>
     </div>
     <ol class="install-steps">
-      <li><code>npm install &amp;&amp; npm run build:extension</code></li>
-      <li><code>chrome://extensions</code> → enable Developer mode → Load unpacked → <code>extension/dist</code></li>
-      <li>Copy the extension ID shown by Chrome into the field below.</li>
+      <li><a class="dl" href="deep-work-field-extension.zip" download>Download deep-work-field-extension.zip</a> and unzip it.</li>
+      <li><code>chrome://extensions</code> → turn on Developer mode → <strong>Load unpacked</strong> → pick the <code>deep-work-field-extension</code> folder.</li>
+      <li>Return to this tab. It connects on its own: the extension’s ID is fixed.</li>
     </ol>
     <p id="ext-result" class="small muted">Connection is optional; the hosted demo works without it.</p>
-    <div class="field-row">
-      <input id="ext-id" type="text" placeholder="Extension ID (32 lowercase letters)" autocomplete="off" spellcheck="false" />
-      <button id="ext-check" class="btn small" type="button">Check</button>
-    </div>
+    <details class="advanced">
+      <summary>Advanced · custom extension ID</summary>
+      <div class="field-row">
+        <input id="ext-id" type="text" placeholder="Extension ID" autocomplete="off" spellcheck="false" />
+        <button id="ext-check" class="btn small" type="button">Check</button>
+      </div>
+    </details>
     <div class="dialog-actions">
       <button class="btn small ghost" data-close="extension-dialog" type="button">Close</button>
     </div>

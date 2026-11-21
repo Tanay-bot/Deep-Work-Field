@@ -68,13 +68,17 @@ function showSavedContext(checkpoint: Checkpoint, result: VerifyResult): void {
 }
 
 async function verifyPending(): Promise<void> {
-  let reply: any;
-  try {
-    reply = await chrome.runtime.sendMessage({ type: 'DWF_GET_PENDING' });
-  } catch {
-    return;
+  // A restore tab can load before the worker finishes registering it, so
+  // ask a few times. Ordinary pages simply never get a pending restore.
+  let pending: any = null;
+  for (let attempt = 0; attempt < 5 && !pending?.checkpoint; attempt++) {
+    if (attempt) await new Promise((resolve) => setTimeout(resolve, 250));
+    try {
+      pending = (await chrome.runtime.sendMessage({ type: 'DWF_GET_PENDING' }))?.pending ?? null;
+    } catch {
+      return;
+    }
   }
-  const pending = reply?.pending;
   if (!pending?.checkpoint) return;
   const checkpoint: Checkpoint = pending.checkpoint;
   activeCheckpoint = checkpoint;
