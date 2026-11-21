@@ -70,8 +70,10 @@ and records whether Chrome or the app's single fallback scroll put the passage o
 - "Learns from your corrections", not "learned my focus".
 - The hosted zero-install demo drives the focus engine with **labelled scripted signals**; live
   mode (real tabs) needs the extension; Full fusion live also needs the camera.
-- Face cues are real (MediaPipe) but have only been tested with a fake camera in CI and by hand —
-  not measured on a study group. Head pose is a proxy for attention.
+- Face cues are real (MediaPipe) but have only been tested with Chromium's fake camera — not yet
+  with a real face or a study group. Head pose is a proxy for attention.
+- The extension asks for no site access at install; it asks per site when you save or return there.
+  Without access, live mode only sees tab titles on that site.
 - The Kokoro HD voice is an optional ~90 MB one-time download from Hugging Face (the only network
   fetch, and only when you click it).
 - Text fragments do not work inside Google Docs (saved context only there).
