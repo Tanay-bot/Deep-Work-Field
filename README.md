@@ -140,7 +140,11 @@ ablation-style record of decisions logged while corrections were active, not a c
   *raise* on-task evidence; the hashed embedder still keys correction memory.
 - **Kokoro**: not bundled; nudges use device `speechSynthesis`.
 - **Tesseract OCR**: not shipped. DOM text only.
-- **PDF.js route**: `extension/pdf/` is a deliberate Phase 6 stub; there is no fake viewer.
+- **PDF route (shipped)**: on a PDF tab, the popup offers **Open this PDF in the Deep Work Field
+  viewer** (`extension/pdf/viewer.html`, PDF.js). Pages render with a real text layer, so the same
+  selection capture and unique-match verification run on PDFs; the page number is the tie-breaking
+  hint. Restores reopen the viewer and draw the amber rule under the verified passage. First 80
+  pages are rendered. `file://` PDFs need the extension's "Allow access to file URLs".
 - **Planner (shipped)**: focus-by-hour curve from saved *live* sessions only (scripted demo samples
   are excluded); an hour is suggested only after ~30 minutes of decided samples.
 - **Capybara constellation (shipped)**: type `capybara` anywhere outside a text field.

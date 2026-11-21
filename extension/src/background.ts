@@ -124,7 +124,9 @@ async function restoreCheckpoint(id: string): Promise<{ ok: boolean; error?: str
   const list = await readCheckpoints();
   const checkpoint = list.find((item) => item.id === id);
   if (!checkpoint) return { ok: false, error: 'Checkpoint not found.' };
-  const url = buildTextFragmentUrl(checkpoint.url, checkpoint);
+  // PDF checkpoints reopen the bundled viewer; its own script finds and verifies the passage.
+  const isViewer = checkpoint.url.startsWith(chrome.runtime.getURL('pdf/viewer.html'));
+  const url = isViewer ? checkpoint.url : buildTextFragmentUrl(checkpoint.url, checkpoint);
   // Open the fragment URL directly: Chrome only runs scroll-to-text on a
   // fresh browser navigation, not on a later update of a blank tab. The page
   // cannot reach document_idle before this registration lands, and the
@@ -177,6 +179,23 @@ chrome.runtime.onMessageExternal.addListener((message: any, sender: any, sendRes
 });
 
 chrome.runtime.onMessage.addListener((message: any, sender: any, sendResponse: (reply: any) => void) => {
+  if (message?.type === 'DWF_SAVE_PDF_CHECKPOINT') {
+    const viewer = chrome.runtime.getURL('pdf/viewer.html');
+    const checkpoint: Checkpoint | undefined = message.checkpoint;
+    if (!checkpoint?.id || !sender.url?.startsWith(viewer) || !checkpoint.url?.startsWith(viewer)) {
+      sendResponse({ ok: false, error: 'Only the Deep Work Field PDF viewer can save PDF checkpoints.' });
+      return false;
+    }
+    void withLock(async () => {
+      const list = await readCheckpoints();
+      list.unshift(checkpoint);
+      await writeCheckpoints(list);
+    })
+      .then(() => setBadge('●', '#45d6ab'))
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
   if (message?.type === 'DWF_SCREEN') {
     if (sender.tab?.id === streamingTab && ports.size) {
       post({ url: String(message.url ?? ''), title: String(message.title ?? ''), text: String(message.text ?? '').slice(0, 1600), restricted: false });

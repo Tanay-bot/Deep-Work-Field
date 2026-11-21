@@ -140,6 +140,47 @@ for (const p of context.pages()) {
   else console.log(`✓ hash-routed page restored with its route kept (#/lesson/4) and verified (${lr.landing})`);
 }
 
+// PDF route: the bundled PDF.js viewer captures and verifies on its text layer.
+{
+  const { readFileSync } = await import('node:fs');
+  const pdfBytes = readFileSync(resolve(root, 'tools/fixtures/worksheet-a.pdf'));
+  await context.route('https://pdf.test/**', (r) => r.fulfill({ contentType: 'application/pdf', body: pdfBytes }));
+  const pdfUrl = 'https://pdf.test/worksheet-a.pdf';
+  const viewer = await context.newPage();
+  await viewer.goto(`chrome-extension://${extId}/pdf/viewer.html?file=${encodeURIComponent(pdfUrl)}`);
+  await viewer.waitForFunction(() => /Select a passage/.test(document.getElementById('status').textContent), null, { timeout: 20000 });
+  const picked = await viewer.evaluate(() => {
+    const spans = [...document.querySelectorAll('.textLayer span')].filter((s) => s.textContent.includes('4b. Limiting reagent'));
+    const first = spans[0];
+    const r = document.createRange();
+    r.selectNodeContents(first);
+    getSelection().removeAllRanges();
+    getSelection().addRange(r);
+    return { twins: spans.length, page: first.closest('.page').dataset.pageNumber };
+  });
+  await viewer.click('#save');
+  await viewer.waitForFunction(() => /Saved|could not/.test(document.getElementById('status').textContent), null, { timeout: 5000 });
+  const savedMsg = await viewer.textContent('#status');
+  await viewer.close();
+  const list = await panel.evaluate(() => chrome.runtime.sendMessage({ type: 'DWF_LIST_FROM_POPUP' }));
+  const pdfCp = list.checkpoints.find((c) => c.docId === pdfUrl);
+  if (!pdfCp) fail(`PDF checkpoint not stored: ${savedMsg}`);
+  else {
+    await panel.evaluate((cid) => chrome.runtime.sendMessage({ type: 'DWF_RESTORE_FROM_POPUP', id: cid }), pdfCp.id);
+    const deadline2 = Date.now() + 25000;
+    let lr;
+    while (Date.now() < deadline2) {
+      lr = (await panel.evaluate(() => chrome.storage.local.get('dwf:lastResult')))['dwf:lastResult'];
+      if (lr?.checkpointId === pdfCp.id && lr.status !== 'pending') break;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    const restored = context.pages().find((p) => p.url().includes('/pdf/viewer.html'));
+    const landedPage = restored ? await restored.evaluate(() => document.querySelector('.page.landed')?.dataset.pageNumber ?? null) : null;
+    if (lr?.status !== 'verified' || landedPage !== picked.page) fail(`PDF restore: ${JSON.stringify(lr)} landed page ${landedPage}, expected ${picked.page}`);
+    else console.log(`✓ PDF route: ${picked.twins} identical "4b" headings; saved and verified back on page ${landedPage} (${savedMsg.trim()})`);
+  }
+}
+
 if (process.env.DWF_POPUP_SHOT) {
   await panel.setViewportSize({ width: 360, height: 560 });
   await panel.reload();

@@ -98,6 +98,14 @@ async function refresh(showResult = true): Promise<void> {
   const checkpoints: PopupCheckpoint[] = reply?.checkpoints ?? [];
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   latest = checkpoints[0] ?? null;
+  // Chrome's PDF viewer is not DOM: offer the bundled viewer instead.
+  const isPdf = !!tab?.url && /^(https?|file):/.test(tab.url) && /\.pdf$/i.test(new URL(tab.url).pathname);
+  const openPdf = $<HTMLButtonElement>('open-pdf');
+  openPdf.hidden = !isPdf;
+  openPdf.onclick = () => {
+    void chrome.tabs.update(tab.id, { url: chrome.runtime.getURL(`pdf/viewer.html?file=${encodeURIComponent(tab.url)}`) });
+    window.close();
+  };
   onSavedPage = !!latest && !!tab?.url && pageOf(tab.url) === pageOf(latest.url);
 
   if (latest) {

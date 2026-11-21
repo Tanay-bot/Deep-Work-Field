@@ -1,23 +1,15 @@
-# PDF route (stubbed)
+# PDF route
 
-This directory is a deliberate Phase 6 stub, not a working PDF viewer. The
-Devpost build ships Phases 1–5; the plan explicitly says not to start the PDF
-route, OCR fallback or planner until those work end to end.
+`viewer.html` + `../src/pdf.ts` (bundled as `pdf/pdf.js` by `extension/build.mjs`, with PDF.js's
+worker and `pdf_viewer.css` copied from `pdfjs-dist`).
 
-What a real implementation needs (and what is missing here):
-
-1. `pdfjs-dist` bundled into the extension, with its worker and the viewer page
-   listed in `web_accessible_resources`.
-2. A page/region checkpoint schema: document hash, page number, normalized
-   text-layer anchor, and prefix/suffix within that page's text layer.
-3. Restore via the bundled viewer, not Chrome's native PDF viewer: open the PDF
-   as an extension page (`/pdf/viewer.html?file=<url>&anchor=...`), render the
-   page, then verify the anchor against the text layer and scroll the canvas to
-   the region. Native PDF pages are not DOM and cannot be text-fragment
-   restored.
-4. A saved-context frame per PDF page, plus the same "Saved context only"
-   failure path used by the HTML route.
-
-The viewer page in this folder only states that the route is absent. The app's
-supported-content table and README say the same thing, so no UI copy claims PDF
-support that does not exist.
+- Chrome's built-in PDF viewer is not DOM, so the popup offers to reopen a PDF tab here.
+- Each page renders to a canvas plus a PDF.js text layer. Line-end `<br>`s and span boundaries get a
+  space so words on adjacent lines do not fuse in the text index.
+- **Save** uses `captureCheckpointFromRange` on the selection; the checkpoint stores the viewer URL,
+  the PDF URL as `docId`, and `[data-page-number="N"]` as the tie-breaking hint.
+- **Restore** reopens the viewer; it asks the worker for its pending restore (same per-tab
+  `restoreId` operations as web pages), scrolls to the page, runs `verifyCheckpointAsync`, and draws
+  the amber rule under the verified passage, or shows "Saved context only".
+- Checked by `tools/extension-e2e.mjs` with `tools/fixtures/worksheet-a.pdf` (two identical 4b
+  headings): saved on page 2 and verified back on page 2.

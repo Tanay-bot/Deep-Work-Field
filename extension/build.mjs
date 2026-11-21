@@ -32,6 +32,19 @@ for (const file of ['manifest.json', 'popup.html', 'popup.css']) {
   cpSync(resolve(here, file), resolve(out, file));
 }
 cpSync(resolve(here, 'pdf'), resolve(out, 'pdf'), { recursive: true });
+rmSync(resolve(out, 'pdf', 'README.md'), { force: true });
+// PDF route: PDF.js is ESM with top-level await, so it is bundled as a module.
+await build({
+  entryPoints: { 'pdf/pdf': resolve(here, 'src/pdf.ts') },
+  bundle: true,
+  outdir: out,
+  format: 'esm',
+  target: ['chrome114'],
+  logLevel: 'warning',
+});
+const pdfjsDir = resolve(root, 'node_modules/pdfjs-dist');
+cpSync(resolve(pdfjsDir, 'build/pdf.worker.min.mjs'), resolve(out, 'pdf/pdf.worker.min.mjs'));
+cpSync(resolve(pdfjsDir, 'web/pdf_viewer.css'), resolve(out, 'pdf/pdf_viewer.css'));
 
 // The zip holds one top-level folder, so "unzip → Load unpacked → pick the folder" just works.
 // A copy is published with the web app so judges can download it from the demo site.

@@ -30,7 +30,8 @@ locally and can override later calls only on a 4-of-5 supermajority.
 - **Chrome extension (Manifest V3)** saves the exact passage you select (mapped to a position in the
   page text, with the words before and after it), opens a scroll-to-text link that Chrome itself
   lands, then verifies the landing in the page. Each restore is its own operation with an ID, so two
-  restores can never be confused.
+  restores can never be confused. PDFs open in a bundled **PDF.js** viewer whose text layer gets
+  the same capture and verification.
 - **Web app (Vite + TypeScript)** runs the focus engine: a temporal model with FOCUSED / WRITING /
   DRIFTING / UNCERTAIN, a 3-second drift hold that restarts if evidence stops arriving, one nudge per
   drift episode, and a live decision trace.
@@ -67,7 +68,7 @@ and records whether Chrome or the app's single fallback scroll put the passage o
   mode (real tabs) needs the extension; Full fusion live also needs the camera.
 - Face cues are real (MediaPipe) but have only been tested with a fake camera in CI and by hand —
   not measured on a study group. Head pose is a proxy for attention.
-- Kokoro voice, OCR and the PDF route are **not shipped** in this build.
+- Kokoro voice and OCR are **not shipped** in this build.
 - Text fragments do not work inside Google Docs (saved context only there).
 - The evaluation study has not been run with students yet; any numbers shown are a pilot. Main metric
   when it is run: "time to first qualifying answer edit".
