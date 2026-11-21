@@ -1,5 +1,7 @@
 // End-to-end check of the unpacked extension in Chromium.
-//   npm run build:extension && npm run dev   (in another shell)
+//   DWF_E2E=1 npm run build:extension && npm run dev   (in another shell)
+// The E2E build pre-grants site access because headless Chrome cannot click
+// the permission prompt; the shipped build asks per site.
 //   node tools/extension-e2e.mjs
 // Saves Part II 4b from the demo worksheet, then fires TWO restores at once:
 // each must settle its own tab with its own restoreId, and nothing may be left pending.

@@ -60,7 +60,23 @@ function describeResult(last: any): void {
   if (hit && Date.now() - (last.at ?? 0) < 10 * 60 * 1000) setStatus(hit[0], hit[1]);
 }
 
-async function restore(id: string): Promise<void> {
+/** Asks for one site's access (must run straight from the click). */
+function requestSite(url: string | undefined): Promise<boolean> {
+  try {
+    const u = new URL(url ?? '');
+    if (!/^https?:$/.test(u.protocol)) return Promise.resolve(true);
+    return chrome.permissions.request({ origins: [`${u.origin}/*`] }).catch(() => false);
+  } catch {
+    return Promise.resolve(true);
+  }
+}
+
+async function restore(id: string, url?: string): Promise<void> {
+  const allowed = await requestSite(url);
+  if (!allowed) {
+    setStatus('Without access to that site the restore cannot be verified, so it was not started.', 'warn');
+    return;
+  }
   primary.disabled = true;
   setStatus('Opening your place and checking the passage…', 'busy');
   const reply = await chrome.runtime.sendMessage({ type: 'DWF_RESTORE_FROM_POPUP', id });
@@ -69,6 +85,8 @@ async function restore(id: string): Promise<void> {
 }
 
 async function save(): Promise<void> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const allowed = await requestSite(tab?.url);
   const goal = goalInput.value.trim() || 'AP Chem unit 4';
   await chrome.storage.local.set({ 'dwf:goal': goal, 'dwf:screenshot': shot.checked });
   primary.disabled = true;
@@ -78,7 +96,12 @@ async function save(): Promise<void> {
   primary.disabled = false;
   secondary.disabled = false;
   if (reply?.ok) {
-    setStatus(`Saved “${reply.checkpoint.anchor.slice(0, 60)}”.`, 'ok');
+    setStatus(
+      allowed
+        ? `Saved “${reply.checkpoint.anchor.slice(0, 60)}”.`
+        : `Saved “${reply.checkpoint.anchor.slice(0, 40)}”, but restores here cannot be verified until you allow this site.`,
+      allowed ? 'ok' : 'warn',
+    );
     await refresh(false);
   } else {
     setStatus(reply?.error ?? 'Could not save.', 'warn');
@@ -103,8 +126,15 @@ async function refresh(showResult = true): Promise<void> {
   const openPdf = $<HTMLButtonElement>('open-pdf');
   openPdf.hidden = !isPdf;
   openPdf.onclick = () => {
-    void chrome.tabs.update(tab.id, { url: chrome.runtime.getURL(`pdf/viewer.html?file=${encodeURIComponent(tab.url)}`) });
-    window.close();
+    // The viewer fetches the PDF, so it needs that one site.
+    void requestSite(tab.url).then((ok) => {
+      if (!ok) {
+        setStatus('The viewer needs access to that site to load the PDF.', 'warn');
+        return;
+      }
+      void chrome.tabs.update(tab.id, { url: chrome.runtime.getURL(`pdf/viewer.html?file=${encodeURIComponent(tab.url)}`) });
+      window.close();
+    });
   };
   onSavedPage = !!latest && !!tab?.url && pageOf(tab.url) === pageOf(latest.url);
 
@@ -134,13 +164,25 @@ async function refresh(showResult = true): Promise<void> {
         )
         .join('')
     : '<li class="empty">No other saved places.</li>';
-  list.querySelectorAll<HTMLButtonElement>('.restore').forEach((b) => b.addEventListener('click', () => void restore(b.dataset.id ?? '')));
+  list.querySelectorAll<HTMLButtonElement>('.restore').forEach((b) =>
+    b.addEventListener('click', () => void restore(b.dataset.id ?? '', checkpoints.find((c) => c.id === b.dataset.id)?.url)),
+  );
   if (showResult) describeResult(stored['dwf:lastResult']);
 }
 
 primary.addEventListener('click', () => {
-  if (latest && !onSavedPage) void restore(latest.id);
+  if (latest && !onSavedPage) void restore(latest.id, latest.url);
   else void save();
+});
+
+const everywhere = $<HTMLInputElement>('everywhere');
+void chrome.permissions.contains({ origins: ['<all_urls>'] }).then((has: boolean) => (everywhere.checked = has));
+everywhere.addEventListener('change', () => {
+  if (everywhere.checked) {
+    void chrome.permissions.request({ origins: ['<all_urls>'] }).then((ok: boolean) => (everywhere.checked = ok));
+  } else {
+    void chrome.permissions.remove({ origins: ['<all_urls>'] });
+  }
 });
 secondary.addEventListener('click', () => void save());
 shot.addEventListener('change', () => void chrome.storage.local.set({ 'dwf:screenshot': shot.checked }));

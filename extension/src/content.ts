@@ -210,30 +210,44 @@ function stopStream(): void {
   streamTimer = 0;
 }
 
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') stopStream();
-});
+// The script can be injected on demand (activeTab / granted sites) as well as
+// registered, so it must install its listeners only once per page.
+const flag = '__dwfContentScript';
+if (!(window as unknown as Record<string, unknown>)[flag]) {
+  (window as unknown as Record<string, unknown>)[flag] = true;
+  installContentScript();
+}
 
-chrome.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: (reply: any) => void) => {
-  if (message?.type === 'DWF_STREAM') {
-    if (message.on) startStream();
-    else stopStream();
+function installContentScript(): void {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') stopStream();
+  });
+
+  chrome.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: (reply: any) => void) => {
+    if (message?.type === 'DWF_CS_PING') {
     sendResponse({ ok: true });
     return false;
   }
-  if (message?.type === 'DWF_CAPTURE') {
-    capture(String(message.goal ?? ''), sendResponse);
+  if (message?.type === 'DWF_STREAM') {
+      if (message.on) startStream();
+      else stopStream();
+      sendResponse({ ok: true });
+      return false;
+    }
+    if (message?.type === 'DWF_CAPTURE') {
+      capture(String(message.goal ?? ''), sendResponse);
+      return false;
+    }
+    if (message?.type === 'DWF_VERIFY_NOW') {
+      void verifyPending().then(() => sendResponse({ ok: true }));
+      return true;
+    }
     return false;
-  }
-  if (message?.type === 'DWF_VERIFY_NOW') {
-    void verifyPending().then(() => sendResponse({ ok: true }));
-    return true;
-  }
-  return false;
-});
+  });
 
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  void verifyPending();
-} else {
-  window.addEventListener('DOMContentLoaded', () => void verifyPending(), { once: true });
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    void verifyPending();
+  } else {
+    window.addEventListener('DOMContentLoaded', () => void verifyPending(), { once: true });
+  }
 }

@@ -9,3 +9,4 @@ extension/*.zip
 .env.*
 !.env.example
 *.log
+extension/*-e2e.zip

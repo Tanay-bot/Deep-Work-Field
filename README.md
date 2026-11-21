@@ -158,6 +158,14 @@ ablation-style record of decisions logged while corrections were active, not a c
 - **Planner (shipped)**: focus-by-hour curve from saved *live* sessions only (scripted demo samples
   are excluded); an hour is suggested only after ~30 minutes of decided samples.
 - **Capybara constellation (shipped)**: type `capybara` anywhere outside a text field.
+- **Narrow site access (shipped)**: the extension asks for **no site access at install**
+  (`host_permissions: []`, `optional_host_permissions: ["<all_urls>"]`). Saving or returning to a
+  passage asks for that one site from the popup; the content script is then registered only for
+  approved sites and injected on demand (activeTab) where you invoke it. Live mode reads full
+  visible text only on approved sites and otherwise uses the tab title (from the `tabs`
+  permission). An opt-in popup switch grants every site. `tools/extension-noperm-e2e.mjs` checks the
+  shipped build nudges from titles with zero site access; `tools/extension-e2e.mjs` runs against a
+  `DWF_E2E=1` build that pre-grants access (headless Chrome cannot click the permission prompt).
 - **Fixed extension ID**: `manifest.json` carries a public `key`, so every unpacked install has the
   ID `ebcoijhkmohgagkgkaaafhjkffcjcchn` and the web app connects without pasting anything. The site's
   origin must still be listed in `externally_connectable`.
@@ -197,7 +205,8 @@ production URL. Add any custom domain there before using the bridge.
 ```bash
 npm test                      # 13 Chromium checks on shared/ capture, verify, fragments, engine
 npm run build:extension && npm run dev   # then, in another shell:
-node tools/extension-e2e.mjs  # loads the unpacked extension, saves 4b, runs two restores at once
+DWF_E2E=1 npm run build:extension && node tools/extension-e2e.mjs   # full extension flow (site access pre-granted)
+npm run build:extension && node tools/extension-noperm-e2e.mjs      # shipped build, no site access
 ```
 
 `npm test` covers: the twin-4b worksheet (never the answer key), a harder fixture where heading

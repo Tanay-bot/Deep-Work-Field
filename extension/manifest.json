@@ -10,7 +10,8 @@
     "scripting",
     "storage"
   ],
-  "host_permissions": [
+  "host_permissions": [],
+  "optional_host_permissions": [
     "<all_urls>"
   ],
   "background": {
@@ -21,18 +22,6 @@
     "default_title": "Deep Work Field",
     "default_popup": "popup.html"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "content.js"
-      ],
-      "run_at": "document_idle",
-      "all_frames": false
-    }
-  ],
   "externally_connectable": {
     "matches": [
       "http://localhost:3000/*",

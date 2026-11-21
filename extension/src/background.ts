@@ -85,8 +85,71 @@ async function activeTab(): Promise<any> {
   return tab;
 }
 
+/* ---------- Narrow site access ------------------------------------------
+ * The extension has no site access at install. The popup asks for a single
+ * site when you save or restore there (optional_host_permissions). The
+ * content script is then registered only for the sites you approved, and is
+ * injected on demand into the tab you invoked the popup on (activeTab).
+ */
+function originPattern(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return /^https?:$/.test(u.protocol) ? `${u.origin}/*` : null;
+  } catch {
+    return null;
+  }
+}
+
+async function hasSiteAccess(url: string): Promise<boolean> {
+  const pattern = originPattern(url);
+  if (!pattern) return false;
+  try {
+    return await chrome.permissions.contains({ origins: [pattern] });
+  } catch {
+    return false;
+  }
+}
+
+/** Makes sure the content script is in a tab (activeTab or a granted site). */
+async function ensureContentScript(tabId: number): Promise<boolean> {
+  try {
+    const pong = await chrome.tabs.sendMessage(tabId, { type: 'DWF_CS_PING' });
+    if (pong?.ok) return true;
+  } catch {
+    /* not injected yet */
+  }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Registers the content script for exactly the granted origins. */
+async function syncRegisteredScripts(): Promise<void> {
+  try {
+    const { origins = [] } = await chrome.permissions.getAll();
+    const matches = origins.filter((o: string) => o === '<all_urls>' || /^https?:\/\//.test(o));
+    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: ['dwf-granted'] }).catch(() => []);
+    if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: ['dwf-granted'] });
+    if (matches.length) {
+      await chrome.scripting.registerContentScripts([
+        { id: 'dwf-granted', matches, js: ['content.js'], runAt: 'document_idle', persistAcrossSessions: true },
+      ]);
+    }
+  } catch {
+    /* registration is best-effort; on-demand injection still works */
+  }
+}
+
+chrome.permissions.onAdded.addListener(() => void syncRegisteredScripts());
+chrome.permissions.onRemoved.addListener(() => void syncRegisteredScripts());
+chrome.runtime.onStartup.addListener(() => void syncRegisteredScripts());
+
 async function captureOnTab(tab: any, goal: string, screenshot = false): Promise<{ ok: boolean; checkpoint?: Checkpoint; error?: string }> {
   if (!tab?.id) return { ok: false, error: 'No active tab.' };
+  await ensureContentScript(tab.id);
   let reply: any = null;
   try {
     reply = await chrome.tabs.sendMessage(tab.id, { type: 'DWF_CAPTURE', goal });
@@ -124,6 +187,9 @@ async function restoreCheckpoint(id: string): Promise<{ ok: boolean; error?: str
   const list = await readCheckpoints();
   const checkpoint = list.find((item) => item.id === id);
   if (!checkpoint) return { ok: false, error: 'Checkpoint not found.' };
+  if (!checkpoint.url.startsWith('chrome-extension://') && !(await hasSiteAccess(checkpoint.url))) {
+    return { ok: false, error: 'Deep Work Field needs access to this site to verify the restore. Use Return in the popup and allow the site.' };
+  }
   // PDF checkpoints reopen the bundled viewer; its own script finds and verifies the passage.
   const isViewer = checkpoint.url.startsWith(chrome.runtime.getURL('pdf/viewer.html'));
   const url = isViewer ? checkpoint.url : buildTextFragmentUrl(checkpoint.url, checkpoint);
@@ -296,12 +362,18 @@ async function streamActiveTab(): Promise<void> {
     chrome.tabs.sendMessage(streamingTab, { type: 'DWF_STREAM', on: false }).catch(() => undefined);
   }
   streamingTab = tab.id;
-  try {
-    await chrome.tabs.sendMessage(tab.id, { type: 'DWF_STREAM', on: true });
-  } catch {
-    // chrome://, the Web Store, Chrome's PDF viewer: no content script.
-    post({ url: tab.url ?? tab.pendingUrl ?? '', title: tab.title ?? '', text: '', restricted: true });
+  const url = tab.url ?? tab.pendingUrl ?? '';
+  // Full visible text only on sites the user granted; elsewhere the tab title
+  // (available through the "tabs" permission) is the evidence.
+  if ((await hasSiteAccess(url)) && (await ensureContentScript(tab.id))) {
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'DWF_STREAM', on: true });
+      return;
+    } catch {
+      /* fall through to title-only */
+    }
   }
+  post({ url, title: tab.title ?? '', text: '', restricted: true });
 }
 
 function stopAllStreams(): void {
@@ -320,6 +392,19 @@ chrome.runtime.onConnectExternal.addListener((port: any) => {
 });
 
 chrome.tabs.onActivated.addListener(() => void streamActiveTab());
+// Title-only tabs have no content script ticking, so refresh them every 1 s
+// (the same cadence as the text stream; the engine treats >1.5 s gaps as
+// stale evidence) while a session listens. The open port keeps the worker alive.
+setInterval(() => {
+  if (ports.size) void restrictedTick();
+}, 1000);
+async function restrictedTick(): Promise<void> {
+  const tab = await activeTab().catch(() => null);
+  if (!tab?.id || tab.id !== streamingTab) return;
+  const url = tab.url ?? '';
+  if (await hasSiteAccess(url)) return;
+  post({ url, title: tab.title ?? '', text: '', restricted: true });
+}
 chrome.windows.onFocusChanged.addListener(() => void streamActiveTab());
 chrome.tabs.onUpdated.addListener((tabId: number, info: any) => {
   if (info.status === 'complete' && tabId === streamingTab) void streamActiveTab();
@@ -339,6 +424,7 @@ chrome.tabs.onRemoved.addListener((tabId: number) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
+  void syncRegisteredScripts();
   void chrome.storage.local.set({ [KEYS.lastResult]: { status: 'installed', at: Date.now() } });
   void setBadge('', '#45d6ab');
 });
